@@ -102,7 +102,8 @@ typedef struct lua_TValue
 #define lightuserdatatag(o) check_exp(ttislightuserdata(o), (o)->extra[0])
 
 // Internal tags used by the VM
-#define LU_TAG_ITERATOR LUA_UTAG_LIMIT
+// Light userdata tag, so it must sit above the registerable light tags or their metatables and liveness checks apply.
+#define LU_TAG_ITERATOR LUA_LUTAG_LIMIT
 
 /*
 ** for internal debug only

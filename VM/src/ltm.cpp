@@ -122,6 +122,9 @@ const TValue* luaT_gettmbyobj(lua_State* L, const TValue* o, TMS event)
     case LUA_TUSERDATA:
         mt = uvalue(o)->metatable;
         break;
+    case LUA_TLIGHTUSERDATA:
+        mt = luaE_lightuserdatamt(L->global, o);
+        break;
     case LUA_TCLASS:
     {
         // We store a metatable for class objects on the
@@ -169,7 +172,7 @@ const TString* luaT_objtypenamestr(lua_State* L, const TValue* o)
     }
 
     // For all types except userdata and table, a global metatable can be set with a global name override
-    if (LuaTable* mt = L->global->mt[ttype(o)])
+    if (LuaTable* mt = ttislightuserdata(o) ? luaE_lightuserdatamt(L->global, o) : L->global->mt[ttype(o)])
     {
         const TValue* type = luaH_getstr(mt, L->global->tmname[TM_TYPE]);
 

@@ -1217,6 +1217,8 @@ static int luauF_getmetatable(lua_State* L, StkId res, TValue* arg0, int nresult
             mt = hvalue(arg0)->metatable;
         else if (ttisuserdata(arg0))
             mt = uvalue(arg0)->metatable;
+        else if (ttislightuserdata(arg0))
+            mt = luaE_lightuserdatamt(L->global, arg0);
         else
             mt = L->global->mt[ttype(arg0)];
 

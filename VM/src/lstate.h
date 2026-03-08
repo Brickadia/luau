@@ -276,6 +276,7 @@ typedef struct global_State
     lua_EmbedderGc embeddergc; // embedder GC callback for keeping weak references alive
 
     TString* lightuserdataname[LUA_LUTAG_LIMIT]; // names for tagged lightuserdata
+    LuaTable* ludatamt[LUA_LUTAG_LIMIT]; // metatables for tagged lightuserdata
 
     // per-tag direct field dispatch tables; NULL until first field is registered for that tag
     struct LuaTable* udatadirectfields[UTAG_INTERNAL_LIMIT];
@@ -375,6 +376,20 @@ union GCObject
 
 // macro to convert any Lua object into a GCObject
 #define obj2gco(v) check_exp(iscollectable(v), cast_to(GCObject*, (v) + 0))
+
+// A tag's own metatable wins; tags without one fall back to the type-wide one set through lua_setmetatable.
+static LUAU_FORCEINLINE LuaTable* luaE_lightuserdatamt(global_State* g, const TValue* o)
+{
+    unsigned tag = unsigned(lightuserdatatag(o));
+    LuaTable* mt = tag < LUA_LUTAG_LIMIT ? g->ludatamt[tag] : NULL;
+    return mt ? mt : g->mt[LUA_TLIGHTUSERDATA];
+}
+
+// Userdata only: vectors and strings must keep reaching their own fast paths before any type metatable.
+static LUAU_FORCEINLINE LuaTable* luaE_udatamt(global_State* g, const TValue* o)
+{
+    return ttisuserdata(o) ? uvalue(o)->metatable : ttislightuserdata(o) ? luaE_lightuserdatamt(g, o) : NULL;
+}
 
 LUAI_FUNC lua_State* luaE_newthread(lua_State* L);
 LUAI_FUNC void luaE_freethread(lua_State* L, lua_State* L1, struct lua_Page* page);

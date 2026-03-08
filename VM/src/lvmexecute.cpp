@@ -601,7 +601,8 @@ reentry:
 
                     // fast-path: user data with C __index TM
                     const TValue* fn = 0;
-                    if (ttisuserdata(rb) && (fn = fasttm(L, uvalue(rb)->metatable, TM_INDEX)) && ttisfunction(fn) && clvalue(fn)->isC)
+                    LuaTable* mt = luaE_udatamt(L->global, rb);
+                    if (mt && (fn = fasttm(L, mt, TM_INDEX)) && ttisfunction(fn) && clvalue(fn)->isC)
                     {
                         // note: it's safe to push arguments past top for complicated reasons (see top of the file)
                         LUAU_ASSERT(L->top + 3 < L->stack + L->stacksize);
@@ -739,7 +740,8 @@ reentry:
                 {
                     // fast-path: user data with C __newindex TM
                     const TValue* fn = 0;
-                    if (ttisuserdata(rb) && (fn = fasttm(L, uvalue(rb)->metatable, TM_NEWINDEX)) && ttisfunction(fn) && clvalue(fn)->isC)
+                    LuaTable* mt = luaE_udatamt(L->global, rb);
+                    if (mt && (fn = fasttm(L, mt, TM_NEWINDEX)) && ttisfunction(fn) && clvalue(fn)->isC)
                     {
                         // note: it's safe to push arguments past top for complicated reasons (see top of the file)
                         LUAU_ASSERT(L->top + 4 < L->stack + L->stacksize);
@@ -977,7 +979,7 @@ reentry:
                 }
                 else
                 {
-                    LuaTable* mt = ttisuserdata(rb) ? uvalue(rb)->metatable : L->global->mt[ttype(rb)];
+                    LuaTable* mt = ttisuserdata(rb) ? uvalue(rb)->metatable : ttislightuserdata(rb) ? luaE_lightuserdatamt(L->global, rb) : L->global->mt[ttype(rb)];
                     const TValue* tmi = 0;
 
                     // fast-path: metatable with __namecall
@@ -2598,7 +2600,7 @@ reentry:
                     // during FORGLOOP
                     if (!ttisfunction(ra))
                     {
-                        LuaTable* mt = ttistable(ra) ? hvalue(ra)->metatable : ttisuserdata(ra) ? uvalue(ra)->metatable : cast_to(LuaTable*, NULL);
+                        LuaTable* mt = ttistable(ra) ? hvalue(ra)->metatable : luaE_udatamt(L->global, ra);
                         const TValue* fn = fasttm(L, mt, TM_ITER);
 
                         if (LUAU_UNLIKELY(fn == NULL && ttisobject(ra)))
@@ -2664,7 +2666,7 @@ reentry:
                     }
                     else
                     {
-                        LuaTable* mt = ttistable(ra) ? hvalue(ra)->metatable : ttisuserdata(ra) ? uvalue(ra)->metatable : cast_to(LuaTable*, NULL);
+                        LuaTable* mt = ttistable(ra) ? hvalue(ra)->metatable : luaE_udatamt(L->global, ra);
 
                         if (const TValue* fn = fasttm(L, mt, TM_ITER))
                         {
