@@ -122,6 +122,12 @@ const TValue* luaT_gettmbyobj(lua_State* L, const TValue* o, TMS event)
     case LUA_TUSERDATA:
         mt = uvalue(o)->metatable;
         break;
+    case LUA_TLIGHTUSERDATA:
+    {
+        int tag = lightuserdatatag(o);
+        mt = unsigned(tag) < LUA_LUTAG_LIMIT ? L->global->ludatamt[tag] : NULL;
+        break;
+    }
     case LUA_TCLASS:
     {
         // We store a metatable for class objects on the

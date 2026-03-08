@@ -417,6 +417,9 @@ LUA_API int lua_getweakref(lua_State* L, int ref); // returns the type of the va
 LUA_API void lua_setuserdatametatable(lua_State* L, int tag);
 LUA_API void lua_getuserdatametatable(lua_State* L, int tag);
 
+LUA_API void lua_setlightuserdatametatable(lua_State* L, int tag);
+LUA_API void lua_getlightuserdatametatable(lua_State* L, int tag);
+
 // Returns the name of a userdata tag - `__type` from the metatable or "userdata" if it is not set
 LUA_API const char* lua_getuserdataname(lua_State* L, int tag);
 

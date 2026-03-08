@@ -249,6 +249,7 @@ typedef struct global_State
     lua_EmbedderGc embeddergc; // embedder GC callback for keeping weak references alive
 
     TString* lightuserdataname[LUA_LUTAG_LIMIT]; // names for tagged lightuserdata
+    LuaTable* ludatamt[LUA_LUTAG_LIMIT]; // metatables for tagged lightuserdata
 
     // per-tag direct field dispatch tables; NULL until first field is registered for that tag
     struct LuaTable* udatadirectfields[UTAG_INTERNAL_LIMIT];

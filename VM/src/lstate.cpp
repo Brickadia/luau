@@ -264,7 +264,10 @@ lua_State* lua_newstate(lua_Alloc f, void* ud)
     }
 
     for (i = 0; i < LUA_LUTAG_LIMIT; i++)
+    {
         g->lightuserdataname[i] = NULL;
+        g->ludatamt[i] = NULL;
+    }
 
     for (i = 0; i < UTAG_INTERNAL_LIMIT; i++)
         g->udatadirectfields[i] = NULL;

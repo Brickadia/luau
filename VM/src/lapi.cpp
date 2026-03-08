@@ -947,6 +947,12 @@ int lua_getmetatable(lua_State* L, int objindex)
     case LUA_TUSERDATA:
         mt = uvalue(obj)->metatable;
         break;
+    case LUA_TLIGHTUSERDATA:
+    {
+        int tag = lightuserdatatag(obj);
+        mt = unsigned(tag) < LUA_LUTAG_LIMIT ? L->global->ludatamt[tag] : NULL;
+        break;
+    }
     case LUA_TOBJECT:
         mt = objectvalue(obj)->lclass->instancemetatable;
         break;
@@ -1894,6 +1900,32 @@ void lua_getuserdatametatable(lua_State* L, int tag)
     ensure_stack(L, 1);
 
     if (LuaTable* h = L->global->udatamt[tag])
+    {
+        sethvalue(L, L->top, h);
+    }
+    else
+    {
+        setnilvalue(L->top);
+    }
+
+    api_incr_top(L);
+}
+
+void lua_setlightuserdatametatable(lua_State* L, int tag)
+{
+    api_check(L, unsigned(tag) < LUA_LUTAG_LIMIT);
+    api_check(L, !L->global->ludatamt[tag]); // reassignment not supported
+    api_check(L, ttistable(L->top - 1));
+    L->global->ludatamt[tag] = hvalue(L->top - 1);
+    L->top--;
+}
+
+void lua_getlightuserdatametatable(lua_State* L, int tag)
+{
+    api_check(L, unsigned(tag) < LUA_LUTAG_LIMIT);
+    luaC_threadbarrier(L);
+
+    if (LuaTable* h = L->global->ludatamt[tag])
     {
         sethvalue(L, L->top, h);
     }

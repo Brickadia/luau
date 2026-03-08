@@ -867,9 +867,14 @@ static void markudatadirectfields(global_State* g)
 static void markmt(global_State* g)
 {
     int i;
+
     for (i = 0; i < LUA_T_COUNT; i++)
         if (g->mt[i])
             markobject(g, g->mt[i]);
+
+    for (i = 0; i < LUA_LUTAG_LIMIT; i++)
+        if (g->ludatamt[i])
+            markobject(g, g->ludatamt[i]);
 }
 
 static void marktaggetmt(global_State* g)

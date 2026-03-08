@@ -680,7 +680,15 @@ const Instruction* executeNAMECALL(lua_State* L, const Instruction* pc, StkId ba
     }
     else
     {
-        LuaTable* mt = ttisuserdata(rb) ? uvalue(rb)->metatable : L->global->mt[ttype(rb)];
+        LuaTable* mt;
+
+        if (ttisuserdata(rb))
+            mt = uvalue(rb)->metatable;
+        else if (ttislightuserdata(rb) && unsigned(lightuserdatatag(rb)) < LUA_LUTAG_LIMIT)
+            mt = L->global->ludatamt[lightuserdatatag(rb)];
+        else
+            mt = L->global->mt[ttype(rb)];
+
         const TValue* tmi = 0;
 
         // fast-path: metatable with __namecall
@@ -786,7 +794,16 @@ const Instruction* executeFORGPREP(lua_State* L, const Instruction* pc, StkId ba
     }
     else
     {
-        LuaTable* mt = ttistable(ra) ? hvalue(ra)->metatable : ttisuserdata(ra) ? uvalue(ra)->metatable : cast_to(LuaTable*, NULL);
+        LuaTable* mt;
+
+        if (ttistable(ra))
+            mt = hvalue(ra)->metatable;
+        else if (ttisuserdata(ra))
+            mt = uvalue(ra)->metatable;
+        else if (ttislightuserdata(ra) && unsigned(lightuserdatatag(ra)) < LUA_LUTAG_LIMIT)
+            mt = L->global->ludatamt[lightuserdatatag(ra)];
+        else
+            mt = NULL;
 
         if (const TValue* fn = fasttm(L, mt, TM_ITER))
         {
