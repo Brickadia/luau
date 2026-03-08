@@ -18,6 +18,15 @@
 
 #include <string.h>
 
+static LUAU_FORCEINLINE LuaTable* vmgetmt(const TValue* o, global_State* g)
+{
+    if (ttisuserdata(o))
+        return uvalue(o)->metatable;
+    if (ttislightuserdata(o))
+        return unsigned(lightuserdatatag(o)) < LUA_LUTAG_LIMIT ? g->ludatamt[lightuserdatatag(o)] : NULL;
+    return g->mt[ttype(o)];
+}
+
 LUAU_FASTFLAGVARIABLE(DebugLuauUserDefinedClassesRuntime)
 LUAU_FASTFLAGVARIABLE(LuauCallFeedback)
 LUAU_FASTFLAGVARIABLE(LuauPromoteProto)
@@ -597,7 +606,8 @@ reentry:
 
                     // fast-path: user data with C __index TM
                     const TValue* fn = 0;
-                    if (ttisuserdata(rb) && (fn = fasttm(L, uvalue(rb)->metatable, TM_INDEX)) && ttisfunction(fn) && clvalue(fn)->isC)
+                    LuaTable* mt = vmgetmt(rb, L->global);
+                    if (mt && (fn = fasttm(L, mt, TM_INDEX)) && ttisfunction(fn) && clvalue(fn)->isC)
                     {
                         // note: it's safe to push arguments past top for complicated reasons (see top of the file)
                         LUAU_ASSERT(L->top + 3 < L->stack + L->stacksize);
@@ -735,7 +745,8 @@ reentry:
                 {
                     // fast-path: user data with C __newindex TM
                     const TValue* fn = 0;
-                    if (ttisuserdata(rb) && (fn = fasttm(L, uvalue(rb)->metatable, TM_NEWINDEX)) && ttisfunction(fn) && clvalue(fn)->isC)
+                    LuaTable* mt = vmgetmt(rb, L->global);
+                    if (mt && (fn = fasttm(L, mt, TM_NEWINDEX)) && ttisfunction(fn) && clvalue(fn)->isC)
                     {
                         // note: it's safe to push arguments past top for complicated reasons (see top of the file)
                         LUAU_ASSERT(L->top + 4 < L->stack + L->stacksize);
@@ -973,7 +984,7 @@ reentry:
                 }
                 else
                 {
-                    LuaTable* mt = ttisuserdata(rb) ? uvalue(rb)->metatable : L->global->mt[ttype(rb)];
+                    LuaTable* mt = vmgetmt(rb, L->global);
                     const TValue* tmi = 0;
 
                     // fast-path: metatable with __namecall
