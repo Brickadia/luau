@@ -2518,7 +2518,7 @@ void IrLoweringX64::lowerInst(IrInst& inst, uint32_t index, const IrBlock& next)
     }
     case IrCmd::CHECK_USERDATA_TAG:
     {
-        build.cmp(byte[regOp(OP_A(inst)) + offsetof(Udata, tag)], intOp(OP_B(inst)));
+        build.cmp(word[regOp(OP_A(inst)) + offsetof(Udata, tag)], intOp(OP_B(inst)));
         jumpOrAbortOnUndef(ConditionX64::NotEqual, OP_C(inst), index, next);
         break;
     }

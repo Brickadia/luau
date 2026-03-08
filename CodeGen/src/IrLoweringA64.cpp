@@ -2666,7 +2666,7 @@ void IrLoweringA64::lowerInst(IrInst& inst, uint32_t index, const IrBlock& next)
         Label fresh; // used when guard aborts execution or jumps to a VM exit
         Label& fail = getTargetLabel(OP_C(inst), index, fresh);
         RegisterA64 temp = regs.allocTemp(KindA64::w);
-        build.ldrb(temp, mem(regOp(OP_A(inst)), offsetof(Udata, tag)));
+        build.ldrh(temp, mem(regOp(OP_A(inst)), offsetof(Udata, tag)));
         build.cmp(temp, uint16_t(intOp(OP_B(inst))));
         build.b(ConditionA64::NotEqual, fail);
         finalizeTargetLabel(OP_C(inst), index, fresh);

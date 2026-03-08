@@ -1829,7 +1829,7 @@ void lua_setuserdatatag(lua_State* L, int idx, int tag)
     api_check(L, unsigned(tag) < LUA_UTAG_LIMIT);
     StkId o = index2addr(L, idx);
     api_check(L, ttisuserdata(o));
-    uvalue(o)->tag = uint8_t(tag);
+    uvalue(o)->tag = uint16_t(tag);
 }
 
 void lua_setuserdatadtor(lua_State* L, int tag, lua_Destructor dtor)

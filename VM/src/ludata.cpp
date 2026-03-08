@@ -9,14 +9,15 @@
 
 Udata* luaU_newudata(lua_State* L, size_t s, int tag)
 {
-    if (s > INT_MAX - sizeof(Udata))
+    if (s > UINT16_MAX - sizeof(Udata))
         luaM_toobig(L);
     Udata* u = luaM_newgco(L, Udata, sizeudata(s), L->activememcat);
     luaC_init(L, u, LUA_TUSERDATA);
-    u->len = int(s);
+    LUAU_ASSERT(s <= UINT16_MAX);
+    u->len = uint16_t(s);
     u->metatable = NULL;
-    LUAU_ASSERT(tag >= 0 && tag <= 255);
-    u->tag = uint8_t(tag);
+    LUAU_ASSERT(tag >= 0 && tag <= UINT16_MAX);
+    u->tag = uint16_t(tag);
     return u;
 }
 
