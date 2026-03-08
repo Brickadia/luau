@@ -310,9 +310,8 @@ typedef struct Udata
 {
     CommonHeader;
 
-    uint8_t tag;
-
-    int len;
+    uint16_t tag;
+    uint16_t len;
 
     struct LuaTable* metatable;
 
