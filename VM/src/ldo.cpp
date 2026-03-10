@@ -31,6 +31,41 @@ LUAU_FASTFLAGVARIABLE(LuauIsYieldableSimplify)
 ** =======================================================
 */
 
+// An error caught by a protected region never unwinds the frame that installed the handler, so hide it inside.
+struct PrethrowScope
+{
+    lua_State* L;
+    void (*prethrow)(void*);
+    void* prethrowdata;
+
+    explicit PrethrowScope(lua_State* L)
+        : L(L)
+        , prethrow(L->prethrow)
+        , prethrowdata(L->prethrowdata)
+    {
+        L->prethrow = NULL;
+        L->prethrowdata = NULL;
+    }
+
+    ~PrethrowScope()
+    {
+        L->prethrow = prethrow;
+        L->prethrowdata = prethrowdata;
+    }
+};
+
+// Cleared before it runs, so a throw from inside the handler can't run it again.
+static void callprethrow(lua_State* L)
+{
+    if (void (*prethrow)(void*) = L->prethrow)
+    {
+        void* prethrowdata = L->prethrowdata;
+        L->prethrow = NULL;
+        L->prethrowdata = NULL;
+        prethrow(prethrowdata);
+    }
+}
+
 #if LUA_USE_LONGJMP
 struct lua_jmpbuf
 {
@@ -50,6 +85,7 @@ struct lua_jmpbuf
 
 int luaD_rawrunprotected(lua_State* L, Pfunc f, void* ud)
 {
+    PrethrowScope prethrowscope(L);
     lua_jmpbuf jb;
     jb.prev = L->global->errorjmp;
     jb.status = 0;
@@ -64,6 +100,8 @@ int luaD_rawrunprotected(lua_State* L, Pfunc f, void* ud)
 
 l_noret luaD_throw(lua_State* L, int errcode)
 {
+    callprethrow(L);
+
     if (lua_jmpbuf* jb = L->global->errorjmp)
     {
         jb->status = errcode;
@@ -124,6 +162,7 @@ private:
 
 int luaD_rawrunprotected(lua_State* L, Pfunc f, void* ud)
 {
+    PrethrowScope prethrowscope(L);
     int status = 0;
 
     try
@@ -162,6 +201,8 @@ int luaD_rawrunprotected(lua_State* L, Pfunc f, void* ud)
 
 l_noret luaD_throw(lua_State* L, int errcode)
 {
+    callprethrow(L);
+
     throw lua_exception(L, errcode);
 }
 #endif

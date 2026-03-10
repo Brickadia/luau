@@ -649,6 +649,11 @@ LUA_API lua_Callbacks* lua_callbacks(lua_State* L);
 // The VM does assume that the embedder will free any memory allocated if the main lua_State the cage is associated with is closed
 LUA_API void lua_setmemorycage(lua_State* L, lua_CageAlloc alloc, void* ud);
 
+// fn runs at most once, just before an error unwinds this thread, and must not call into the VM.
+// Clear it before returning or calling anything that can run Luau.
+LUA_API void lua_setprethrow(lua_State* L, void (*fn)(void*), void* data);
+LUA_API void lua_clearprethrow(lua_State* L);
+
 /******************************************************************************
  * Copyright (c) 2019-2023 Roblox Corporation
  * Copyright (C) 1994-2008 Lua.org, PUC-Rio.  All rights reserved.
