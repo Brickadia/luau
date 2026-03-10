@@ -319,6 +319,9 @@ struct lua_State
     LuaTable* finalizers; // optional table of all the callbacks to run when this thread completes (see coroutine.finally)
 
     void* userdata;
+
+    void (*prethrow)(void*); // called before error longjmp to clean up C++ stack objects
+    void* prethrowdata;
 };
 // clang-format on
 

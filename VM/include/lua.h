@@ -649,6 +649,11 @@ LUA_API lua_Callbacks* lua_callbacks(lua_State* L);
 // The VM does assume that the embedder will free any memory allocated if the main lua_State the cage is associated with is closed
 LUA_API void lua_setmemorycage(lua_State* L, lua_CageAlloc alloc, void* ud);
 
+// Set/clear the prethrow cleanup handler. Called frequently around Lua API calls
+// that may error, to ensure C++ stack objects get destroyed before longjmp.
+LUA_API void lua_setprethrow(lua_State* L, void (*fn)(void*), void* data);
+LUA_API void lua_clearprethrow(lua_State* L);
+
 /******************************************************************************
  * Copyright (c) 2019-2023 Roblox Corporation
  * Copyright (C) 1994-2008 Lua.org, PUC-Rio.  All rights reserved.

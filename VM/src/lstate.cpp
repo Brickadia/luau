@@ -106,6 +106,8 @@ static void preinit_state(lua_State* L, global_State* g)
     L->activememcat = 0;
     L->finalizers = NULL;
     L->userdata = NULL;
+    L->prethrow = NULL;
+    L->prethrowdata = NULL;
 }
 
 static void close_state(lua_State* L)

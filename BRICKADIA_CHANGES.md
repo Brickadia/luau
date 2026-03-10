@@ -36,3 +36,23 @@ same size (`offsetof(Udata, data)` remains 16). Maximum userdata payload is now
 
 `LUA_UTAG_LIMIT` (default 128) is independent of the field width and can be
 raised via compiler define to use the full range.
+
+
+## 3. Pre-throw cleanup callback
+
+Unreal Engine builds with exceptions disabled, so Luau uses `longjmp` for error
+handling, which skips C++ destructors. Generated binding code creates
+stack-allocated containers (TArray, TMap, etc.) that must be destroyed before
+the jump. Two new per-thread fields on `lua_State` and
+corresponding API functions allow registering a cleanup callback:
+
+```c
+void lua_setprethrow(lua_State* L, void (*fn)(void*), void* data);
+void lua_clearprethrow(lua_State* L);
+```
+
+When `luaD_throw` fires, it calls `fn(data)` before the `longjmp`/`throw`,
+giving the caller a chance to destroy C++ objects on the stack. The fields live
+directly on `lua_State` (not `global_State`) to avoid function-call overhead
+through `lua_callbacks()`, since they are set and cleared on every generated
+function that has non-trivial temporaries.
