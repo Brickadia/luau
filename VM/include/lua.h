@@ -620,6 +620,11 @@ typedef struct lua_Callbacks lua_Callbacks;
 
 LUA_API lua_Callbacks* lua_callbacks(lua_State* L);
 
+// Set/clear the prethrow cleanup handler. Called frequently around Lua API calls
+// that may error, to ensure C++ stack objects get destroyed before longjmp.
+LUA_API void lua_setprethrow(lua_State* L, void (*fn)(void*), void* data);
+LUA_API void lua_clearprethrow(lua_State* L);
+
 /******************************************************************************
  * Copyright (c) 2019-2023 Roblox Corporation
  * Copyright (C) 1994-2008 Lua.org, PUC-Rio.  All rights reserved.

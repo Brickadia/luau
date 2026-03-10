@@ -2064,6 +2064,18 @@ lua_Callbacks* lua_callbacks(lua_State* L)
     return &L->global->cb;
 }
 
+void lua_setprethrow(lua_State* L, void (*fn)(void*), void* data)
+{
+    L->prethrow = fn;
+    L->prethrowdata = data;
+}
+
+void lua_clearprethrow(lua_State* L)
+{
+    L->prethrow = NULL;
+    L->prethrowdata = NULL;
+}
+
 void lua_setmemcat(lua_State* L, int category)
 {
     api_check(L, unsigned(category) < LUA_MEMORY_CATEGORIES);

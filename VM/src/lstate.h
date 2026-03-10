@@ -302,6 +302,9 @@ struct lua_State
     TString* namecall; // when invoked from Luau using NAMECALL, what method do we need to invoke?
 
     void* userdata;
+
+    void (*prethrow)(void*); // called before error longjmp to clean up C++ stack objects
+    void* prethrowdata;
 };
 // clang-format on
 
