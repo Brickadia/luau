@@ -57,3 +57,11 @@ stack without leaving a dangling callback after a protected error. The fields
 live directly on `lua_State` (not `global_State`) to avoid function-call overhead
 through `lua_callbacks()`, since they are set on every generated function that
 has non-trivial temporaries.
+
+
+## 4. Native operators for 64-bit integers
+
+Upstream's experimental `integer` type only implements equality and exposes
+arithmetic through `integer.*` functions. Brickadia adds native wrapping
+`+`, `-`, `*`, signed `/`, floored `//` and `%`, unary negation, and signed
+ordering operators. Mixed integer/number operations remain type errors.
