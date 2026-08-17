@@ -68,3 +68,22 @@ Contract for callers:
   (Unreal's editor builds) and skips them otherwise. Construct it in raw
   storage, and destroy it explicitly on the success path after clearing the
   handler.
+
+
+## 3. Native operators for 64-bit integers
+
+Upstream's experimental `integer` type only implements equality and exposes
+arithmetic through `integer.*` functions. Brickadia adds native wrapping
+`+`, `-`, `*`, `^`, signed `/`, floored `//` and `%`, unary negation, and signed
+ordering operators. Mixed integer/number operations remain type errors.
+`^` uses wrapping exponentiation by squaring and errors on negative exponents.
+
+`/` truncates toward zero; `//` and `%` floor, so `(a // b) * b + a % b == a`.
+Division and modulo by zero raise "division by zero". `INT64_MIN / -1` and
+`INT64_MIN // -1` raise "integer overflow" (matching `integer.div` and
+`integer.idiv`), while `INT64_MIN % -1` is 0.
+
+The new type solver types them too, only with `LuauIntegerType2`: arithmetic on
+two integers gives `integer`, integer comparisons give `boolean`, and unary
+minus accepts `number | integer` (TypeChecker2 and the builtin type functions).
+The old solver still rejects every integer operator.
