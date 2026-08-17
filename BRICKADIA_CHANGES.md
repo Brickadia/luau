@@ -51,8 +51,9 @@ void lua_setprethrow(lua_State* L, void (*fn)(void*), void* data);
 void lua_clearprethrow(lua_State* L);
 ```
 
-When `luaD_throw` fires, it calls `fn(data)` before the `longjmp`/`throw`,
-giving the caller a chance to destroy C++ objects on the stack. The fields live
-directly on `lua_State` (not `global_State`) to avoid function-call overhead
-through `lua_callbacks()`, since they are set and cleared on every generated
-function that has non-trivial temporaries.
+When `luaD_throw` fires, it clears the handler and then calls `fn(data)` before
+the `longjmp`/`throw`, giving the caller a chance to destroy C++ objects on the
+stack without leaving a dangling callback after a protected error. The fields
+live directly on `lua_State` (not `global_State`) to avoid function-call overhead
+through `lua_callbacks()`, since they are set on every generated function that
+has non-trivial temporaries.
