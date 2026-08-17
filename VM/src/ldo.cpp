@@ -63,7 +63,13 @@ int luaD_rawrunprotected(lua_State* L, Pfunc f, void* ud)
 l_noret luaD_throw(lua_State* L, int errcode)
 {
     if (L->prethrow)
-        L->prethrow(L->prethrowdata);
+    {
+        void (*prethrow)(void*) = L->prethrow;
+        void* prethrowdata = L->prethrowdata;
+        L->prethrow = NULL;
+        L->prethrowdata = NULL;
+        prethrow(prethrowdata);
+    }
 
     if (lua_jmpbuf* jb = L->global->errorjmp)
     {
@@ -164,7 +170,13 @@ int luaD_rawrunprotected(lua_State* L, Pfunc f, void* ud)
 l_noret luaD_throw(lua_State* L, int errcode)
 {
     if (L->prethrow)
-        L->prethrow(L->prethrowdata);
+    {
+        void (*prethrow)(void*) = L->prethrow;
+        void* prethrowdata = L->prethrowdata;
+        L->prethrow = NULL;
+        L->prethrowdata = NULL;
+        prethrow(prethrowdata);
+    }
 
     throw lua_exception(L, errcode);
 }
