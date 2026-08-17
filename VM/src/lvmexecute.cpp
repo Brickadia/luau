@@ -1786,6 +1786,11 @@ reentry:
                     setnvalue(ra, nvalue(rb) + nvalue(rc));
                     VM_NEXT();
                 }
+                else if (ttisinteger(rb) && ttisinteger(rc))
+                {
+                    setlvalue(ra, int64_t(uint64_t(lvalue(rb)) + uint64_t(lvalue(rc))));
+                    VM_NEXT();
+                }
                 else if (ttisvector(rb) && ttisvector(rc))
                 {
                     const LUA_VECTOR_TYPE* vb = vvalue(rb);
@@ -1832,6 +1837,11 @@ reentry:
                     setnvalue(ra, nvalue(rb) - nvalue(rc));
                     VM_NEXT();
                 }
+                else if (ttisinteger(rb) && ttisinteger(rc))
+                {
+                    setlvalue(ra, int64_t(uint64_t(lvalue(rb)) - uint64_t(lvalue(rc))));
+                    VM_NEXT();
+                }
                 else if (ttisvector(rb) && ttisvector(rc))
                 {
                     const LUA_VECTOR_TYPE* vb = vvalue(rb);
@@ -1876,6 +1886,11 @@ reentry:
                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc)))
                 {
                     setnvalue(ra, nvalue(rb) * nvalue(rc));
+                    VM_NEXT();
+                }
+                else if (ttisinteger(rb) && ttisinteger(rc))
+                {
+                    setlvalue(ra, int64_t(uint64_t(lvalue(rb)) * uint64_t(lvalue(rc))));
                     VM_NEXT();
                 }
                 else if (ttisvector(rb) && ttisnumber(rc))
@@ -2403,6 +2418,11 @@ reentry:
                 if (LUAU_LIKELY(ttisnumber(rb)))
                 {
                     setnvalue(ra, -nvalue(rb));
+                    VM_NEXT();
+                }
+                else if (ttisinteger(rb))
+                {
+                    setlvalue(ra, int64_t(~uint64_t(lvalue(rb)) + 1));
                     VM_NEXT();
                 }
                 else if (ttisvector(rb))

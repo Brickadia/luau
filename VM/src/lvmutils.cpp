@@ -10,6 +10,7 @@
 #include "lvector.h"
 #include "lgc.h"
 #include "ldo.h"
+#include "ldebug.h"
 #include "lnumutils.h"
 
 #include <string.h>
@@ -313,6 +314,8 @@ int luaV_lessthan(lua_State* L, const TValue* l, const TValue* r)
         luaG_ordererror(L, l, r, TM_LT);
     else if (LUAU_LIKELY(ttisnumber(l)))
         return luai_numlt(nvalue(l), nvalue(r));
+    else if (ttisinteger(l))
+        return lvalue(l) < lvalue(r);
     else if (ttisstring(l))
         return luaV_strcmp(tsvalue(l), tsvalue(r)) < 0;
     else
@@ -326,6 +329,8 @@ int luaV_lessequal(lua_State* L, const TValue* l, const TValue* r)
         luaG_ordererror(L, l, r, TM_LE);
     else if (ttisnumber(l))
         return luai_numle(nvalue(l), nvalue(r));
+    else if (ttisinteger(l))
+        return lvalue(l) <= lvalue(r);
     else if (ttisstring(l))
         return luaV_strcmp(tsvalue(l), tsvalue(r)) <= 0;
     else if ((res = call_orderTM(L, l, r, TM_LE)) != -1) // first try `le'
@@ -461,6 +466,65 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
 {
     TValue tempb, tempc;
     const TValue *b, *c;
+
+    if (ttisinteger(rb) && ttisinteger(rc))
+    {
+        int64_t nb = lvalue(rb);
+        int64_t nc = lvalue(rc);
+
+        switch (op)
+        {
+        case TM_ADD:
+            setlvalue(ra, int64_t(uint64_t(nb) + uint64_t(nc)));
+            return;
+        case TM_SUB:
+            setlvalue(ra, int64_t(uint64_t(nb) - uint64_t(nc)));
+            return;
+        case TM_MUL:
+            setlvalue(ra, int64_t(uint64_t(nb) * uint64_t(nc)));
+            return;
+        case TM_DIV:
+            if (nc == 0)
+                luaG_runerror(L, "division by zero");
+            if (nb == INT64_MIN && nc == -1)
+                luaG_runerror(L, "integer overflow");
+            setlvalue(ra, nb / nc);
+            return;
+        case TM_IDIV:
+        {
+            if (nc == 0)
+                luaG_runerror(L, "division by zero");
+            if (nb == INT64_MIN && nc == -1)
+                luaG_runerror(L, "integer overflow");
+
+            int64_t result = nb / nc;
+            if (result < 0 && nb % nc)
+                --result;
+            setlvalue(ra, result);
+            return;
+        }
+        case TM_MOD:
+        {
+            if (nc == 0)
+                luaG_runerror(L, "division by zero");
+
+            int64_t result = 0;
+            if (nb != INT64_MIN || nc != -1)
+            {
+                result = nb % nc;
+                if (result && ((nb < 0) != (nc < 0)))
+                    result += nc;
+            }
+            setlvalue(ra, result);
+            return;
+        }
+        case TM_UNM:
+            setlvalue(ra, int64_t(~uint64_t(nb) + 1));
+            return;
+        default:
+            break;
+        }
+    }
 
     // vector operations that we support:
     // v+v  v-v  -v    (add/sub/neg)
