@@ -37,7 +37,7 @@
 
 static int luauF_assert(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
-    if (nparams >= 1 && nresults == 0 && !l_isfalse(arg0))
+    if (nparams >= 1 && nresults == 0 && !l_isfalseL(L, arg0))
     {
         return 0;
     }

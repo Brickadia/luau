@@ -405,7 +405,7 @@ static int sort_func(lua_State* L, const TValue* l, const TValue* r)
     luaD_call(L, L->top - 3, 1);
     L->top -= 1; // maintain stack depth
 
-    return !l_isfalse(L->top);
+    return !l_isfalseL(L, L->top);
 }
 
 inline void sort_swap(lua_State* L, LuaTable* t, int i, int j)
