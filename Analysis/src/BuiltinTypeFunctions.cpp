@@ -331,6 +331,9 @@ TypeFunctionReductionResult<TypeId> unmTypeFunction(
     if (normTy->isExactlyNumber())
         return {ctx->builtins->numberType, Reduction::MaybeOk, {}, {}};
 
+    if (normTy->isExactlyInteger())
+        return {ctx->builtins->integerType, Reduction::MaybeOk, {}, {}};
+
     if (auto result = tryDistributeTypeFunctionApp(unmTypeFunction, instance, typeParams, packParams, ctx))
         return *result;
 
@@ -441,6 +444,9 @@ TypeFunctionReductionResult<TypeId> numericBinopTypeFunction(
     // if we're adding two `number` types, the result is `number`.
     if (normLhsTy->isExactlyNumber() && normRhsTy->isExactlyNumber())
         return {ctx->builtins->numberType, Reduction::MaybeOk, {}, {}};
+
+    if (normLhsTy->isExactlyInteger() && normRhsTy->isExactlyInteger())
+        return {ctx->builtins->integerType, Reduction::MaybeOk, {}, {}};
 
     if (auto result = tryDistributeTypeFunctionApp(numericBinopTypeFunction, instance, typeParams, packParams, ctx, metamethod))
         return *result;
@@ -845,6 +851,9 @@ static TypeFunctionReductionResult<TypeId> comparisonTypeFunction(
 
     // If both types are exactly `number`, we can reduce now.
     if (normLhsTy->isExactlyNumber() && normRhsTy->isExactlyNumber())
+        return {ctx->builtins->booleanType, Reduction::MaybeOk, {}, {}};
+
+    if (normLhsTy->isExactlyInteger() && normRhsTy->isExactlyInteger())
         return {ctx->builtins->booleanType, Reduction::MaybeOk, {}, {}};
 
     if (auto result = tryDistributeTypeFunctionApp(comparisonTypeFunction, instance, typeParams, packParams, ctx, metamethod))

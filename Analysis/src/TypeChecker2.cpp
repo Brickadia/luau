@@ -2245,7 +2245,10 @@ void TypeChecker2::visit(AstExprUnary* expr)
         if (FFlag::LuauIntegerType2 && expr->expr->is<AstExprConstantInteger>())
             testIsSubtype(operandType, builtinTypes->integerType, expr->location);
         else
-            testIsSubtype(operandType, builtinTypes->numberType, expr->location);
+        {
+            const TypeId numberOrInteger = module->internalTypes->addType(UnionType{{builtinTypes->numberType, builtinTypes->integerType}});
+            testIsSubtype(operandType, numberOrInteger, expr->location);
+        }
     }
     else if (expr->op == AstExprUnary::Op::Not)
     {
@@ -2575,6 +2578,12 @@ TypeId TypeChecker2::visit(AstExprBinary* expr, AstNode* overrideKey)
     case AstExprBinary::Op::FloorDiv:
     case AstExprBinary::Op::Pow:
     case AstExprBinary::Op::Mod:
+        if (subtyping->isSubtype(leftType, builtinTypes->integerType, scope).isSubtype)
+        {
+            testIsSubtype(rightType, builtinTypes->integerType, expr->right->location);
+            return builtinTypes->integerType;
+        }
+
         testIsSubtype(leftType, builtinTypes->numberType, expr->left->location);
         testIsSubtype(rightType, builtinTypes->numberType, expr->right->location);
 
@@ -2597,6 +2606,12 @@ TypeId TypeChecker2::visit(AstExprBinary* expr, AstNode* overrideKey)
         // if we're comparing against an uninhabited type, it's unobservable that the comparison did not run
         if (normLeft && normalizer.isInhabited(normLeft.get()) == NormalizationResult::False)
             return builtinTypes->booleanType;
+
+        if (subtyping->isSubtype(leftType, builtinTypes->integerType, scope).isSubtype)
+        {
+            testIsSubtype(rightType, builtinTypes->integerType, expr->right->location);
+            return builtinTypes->booleanType;
+        }
 
         // This could be a little wasteful, as we already have normalized
         // types, but correctly handles cases like `_: (T & number) <= _: (T & number)`.
