@@ -303,6 +303,12 @@ bool NormalizedType::isExactlyNumber() const
                !hasBuffers() && !hasTables() && !hasFunctions() && !hasTyvars();
 }
 
+bool NormalizedType::isExactlyInteger() const
+{
+    return hasIntegers() && !hasTops() && !hasBooleans() && !hasExternTypes() && !hasErrors() && !hasNils() && !hasStrings() && !hasThreads() &&
+           !hasBuffers() && !hasTables() && !hasFunctions() && !hasTyvars() && !hasNumbers();
+}
+
 bool NormalizedType::isSubtypeOfString() const
 {
     if (FFlag::LuauIntegerType2)
