@@ -277,6 +277,7 @@ typedef struct global_State
 
     TString* lightuserdataname[LUA_LUTAG_LIMIT]; // names for tagged lightuserdata
     LuaTable* ludatamt[LUA_LUTAG_LIMIT]; // metatables for tagged lightuserdata
+    lua_LightUserdataLiveness ludataliveness[LUA_LUTAG_LIMIT]; // liveness checks making dead tagged lightuserdata falsy
 
     // per-tag direct field dispatch tables; NULL until first field is registered for that tag
     struct LuaTable* udatadirectfields[UTAG_INTERNAL_LIMIT];
@@ -396,3 +397,9 @@ static LUAU_FORCEINLINE LuaTable* luaE_udatamt(global_State* g, const TValue* o)
 
 LUAI_FUNC lua_State* luaE_newthread(lua_State* L);
 LUAI_FUNC void luaE_freethread(lua_State* L, lua_State* L1, struct lua_Page* page);
+
+// Returns 1 when a tagged lightuserdata has a liveness check that reports it dead
+LUAI_FUNC int luaE_lightuserdatadead(lua_State* L, const TValue* o);
+
+// Truthiness test honoring lightuserdata liveness checks
+#define l_isfalseL(L, o) (unsigned(ttype(o)) <= LUA_TLIGHTUSERDATA && (ttislightuserdata(o) ? luaE_lightuserdatadead(L, o) : l_isfalse(o)))

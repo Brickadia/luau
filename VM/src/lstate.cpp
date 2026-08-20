@@ -252,3 +252,11 @@ void lua_close(lua_State* L)
     luaF_close(L, L->stack);   // close all upvalues for this thread
     close_state(L);
 }
+
+// Out of line so LTO keeps the liveness check out of every truthiness test in the interpreter loop
+LUAU_NOINLINE int luaE_lightuserdatadead(lua_State* L, const TValue* o)
+{
+    unsigned tag = unsigned(lightuserdatatag(o));
+    lua_LightUserdataLiveness check = tag < LUA_LUTAG_LIMIT ? L->global->ludataliveness[tag] : NULL;
+    return check && !check(pvalue(o));
+}

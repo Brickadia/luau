@@ -87,3 +87,31 @@ The new type solver types them too, only with `LuauIntegerType2`: arithmetic on
 two integers gives `integer`, integer comparisons give `boolean`, and unary
 minus accepts `number | integer` (TypeChecker2 and the builtin type functions).
 The old solver still rejects every integer operator.
+
+## 4. Liveness checks for tagged light userdata
+
+Brickadia exposes weak handles (bricks, objects) as tagged light userdata. A
+per-tag liveness callback makes dead handles falsy everywhere Luau tests
+truthiness: `if`, `while`, `repeat`, `and`/`or`, `not`, `assert`,
+`lua_toboolean`, and the results of `__eq`/`__lt`/`__le`, `table.sort`
+comparators and `gsub` replacement functions. So `if handle then` tests
+liveness directly. Everything else is unchanged: `x == nil` stays false,
+`type()`, equality, and table keys behave as before, and generic `for`
+termination remains nil-based.
+
+```c
+typedef int (*lua_LightUserdataLiveness)(void* p);
+void lua_setlightuserdatalivenesscheck(lua_State* L, int tag, lua_LightUserdataLiveness check);
+```
+
+The callback runs inside the interpreter loop: it must not call into the VM,
+error, yield, or allocate, and should be O(1). Reassignment is not supported.
+Values of other types pay at most one extra predicted branch; every light
+userdata truthiness test makes one out-of-line call, even for tags without a
+check.
+
+The type checker doesn't know about liveness: in `if h then ... else ... end`
+it narrows `h` to `never` in the else branch.
+
+Native codegen must not be enabled while liveness checks are registered; its
+inlined truthiness operations still treat all light userdata as truthy.
