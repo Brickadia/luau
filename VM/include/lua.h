@@ -465,6 +465,12 @@ LUA_API void lua_userdatadirectfield_setnil(void* result);
 LUA_API void lua_setlightuserdataname(lua_State* L, int tag, const char* name);
 LUA_API const char* lua_getlightuserdataname(lua_State* L, int tag);
 
+// Liveness checks for tagged lightuserdata: values whose check returns 0 evaluate as false in
+// boolean contexts (if/and/or/not/lua_toboolean). Equality, type() and table keys are unaffected.
+// The check runs inside the interpreter loop: it must not call into the VM, error, or allocate.
+typedef int (*lua_LightUserdataLiveness)(void* p);
+LUA_API void lua_setlightuserdatalivenesscheck(lua_State* L, int tag, lua_LightUserdataLiveness check);
+
 LUA_API void lua_clonefunction(lua_State* L, int idx);
 LUA_API int lua_usesexport(lua_State* L, int idx);
 

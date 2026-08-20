@@ -65,3 +65,25 @@ Upstream's experimental `integer` type only implements equality and exposes
 arithmetic through `integer.*` functions. Brickadia adds native wrapping
 `+`, `-`, `*`, signed `/`, floored `//` and `%`, unary negation, and signed
 ordering operators. Mixed integer/number operations remain type errors.
+
+
+## 5. Liveness checks for tagged light userdata
+
+Brickadia exposes weak handles (bricks, objects) as tagged light userdata. A
+per-tag liveness callback makes dead handles falsy in boolean contexts (`if`,
+`and`/`or`, `not`, `assert`, `lua_toboolean`), so `if handle then` tests
+liveness directly. Everything else is unchanged: `x == nil` stays false,
+`type()`, equality, and table keys behave as before, and generic `for`
+termination remains nil-based.
+
+```c
+typedef int (*lua_LightUserdataLiveness)(void* p);
+void lua_setlightuserdatalivenesscheck(lua_State* L, int tag, lua_LightUserdataLiveness check);
+```
+
+The callback runs inside the interpreter loop: it must not call into the VM,
+error, yield, or allocate, and should be O(1). Reassignment is not supported.
+Values of other types pay at most one extra predicted branch.
+
+Native codegen must not be enabled while liveness checks are registered; its
+inlined truthiness operations still treat all light userdata as truthy.

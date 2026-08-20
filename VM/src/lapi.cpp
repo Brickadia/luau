@@ -473,7 +473,7 @@ unsigned lua_tounsignedx(lua_State* L, int idx, int* isnum)
 int lua_toboolean(lua_State* L, int idx)
 {
     const TValue* o = index2addr(L, idx);
-    return !l_isfalse(o);
+    return !l_isfalseL(L, o);
 }
 
 int64_t lua_tointeger64(lua_State* L, int idx, int* isinteger)
@@ -2009,6 +2009,13 @@ const char* lua_getlightuserdataname(lua_State* L, int tag)
     api_check(L, unsigned(tag) < LUA_LUTAG_LIMIT);
     const TString* name = L->global->lightuserdataname[tag];
     return name ? getstr(name) : nullptr;
+}
+
+void lua_setlightuserdatalivenesscheck(lua_State* L, int tag, lua_LightUserdataLiveness check)
+{
+    api_check(L, unsigned(tag) < LUA_LUTAG_LIMIT);
+    api_check(L, !L->global->ludataliveness[tag]); // reassignment not supported
+    L->global->ludataliveness[tag] = check;
 }
 
 void lua_clonefunction(lua_State* L, int idx)

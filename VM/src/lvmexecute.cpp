@@ -1360,7 +1360,7 @@ reentry:
                 VM_CASE_INSTRUCTION insn = *pc++;
                 VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
 
-                pc += l_isfalse(ra) ? 0 : LUAU_INSN_D(insn);
+                pc += l_isfalseL(L, ra) ? 0 : LUAU_INSN_D(insn);
                 VM_ASSERT_PC(pc);
                 VM_NEXT();
             }
@@ -1370,7 +1370,7 @@ reentry:
                 VM_CASE_INSTRUCTION insn = *pc++;
                 VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
 
-                pc += l_isfalse(ra) ? LUAU_INSN_D(insn) : 0;
+                pc += l_isfalseL(L, ra) ? LUAU_INSN_D(insn) : 0;
                 VM_ASSERT_PC(pc);
                 VM_NEXT();
             }
@@ -1460,7 +1460,7 @@ reentry:
                                 L->top = top + 3;
 
                                 VM_PROTECT(luaV_callTM(L, 2, res));
-                                pc += !l_isfalse(&base[res]) ? LUAU_INSN_D(insn) : 1;
+                                pc += !l_isfalseL(L, &base[res]) ? LUAU_INSN_D(insn) : 1;
                                 VM_ASSERT_PC(pc);
                                 VM_NEXT();
                             }
@@ -1593,7 +1593,7 @@ reentry:
                                 L->top = top + 3;
 
                                 VM_PROTECT(luaV_callTM(L, 2, res));
-                                pc += l_isfalse(&base[res]) ? LUAU_INSN_D(insn) : 1;
+                                pc += l_isfalseL(L, &base[res]) ? LUAU_INSN_D(insn) : 1;
                                 VM_ASSERT_PC(pc);
                                 VM_NEXT();
                             }
@@ -2344,7 +2344,7 @@ reentry:
                 VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
-                setobj2s(L, ra, l_isfalse(rb) ? rb : rc);
+                setobj2s(L, ra, l_isfalseL(L, rb) ? rb : rc);
                 VM_NEXT();
             }
 
@@ -2355,7 +2355,7 @@ reentry:
                 VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
-                setobj2s(L, ra, l_isfalse(rb) ? rc : rb);
+                setobj2s(L, ra, l_isfalseL(L, rb) ? rc : rb);
                 VM_NEXT();
             }
 
@@ -2366,7 +2366,7 @@ reentry:
                 VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
-                setobj2s(L, ra, l_isfalse(rb) ? rb : kv);
+                setobj2s(L, ra, l_isfalseL(L, rb) ? rb : kv);
                 VM_NEXT();
             }
 
@@ -2377,7 +2377,7 @@ reentry:
                 VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
-                setobj2s(L, ra, l_isfalse(rb) ? kv : rb);
+                setobj2s(L, ra, l_isfalseL(L, rb) ? kv : rb);
                 VM_NEXT();
             }
 
@@ -2403,7 +2403,7 @@ reentry:
                 VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
                 VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
 
-                int res = l_isfalse(rb);
+                int res = l_isfalseL(L, rb);
                 setbvalue(ra, res);
                 VM_NEXT();
             }

@@ -282,7 +282,7 @@ static int call_orderTM(lua_State* L, const TValue* p1, const TValue* p2, TMS ev
         return -1;
     }
     callTMres(L, L->top, tm1, p1, p2);
-    return !l_isfalse(L->top);
+    return !l_isfalseL(L, L->top);
 }
 
 int luaV_strcmp(const TString* ls, const TString* rs)
@@ -395,7 +395,7 @@ int luaV_equalval(lua_State* L, const TValue* t1, const TValue* t2)
         return gcvalue(t1) == gcvalue(t2);
     }
     callTMres(L, L->top, tm, t1, t2); // call TM
-    return !l_isfalse(L->top);
+    return !l_isfalseL(L, L->top);
 }
 
 void luaV_concat(lua_State* L, int total, int last)

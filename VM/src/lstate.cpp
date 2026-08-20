@@ -269,6 +269,7 @@ lua_State* lua_newstate(lua_Alloc f, void* ud)
     {
         g->lightuserdataname[i] = NULL;
         g->ludatamt[i] = NULL;
+        g->ludataliveness[i] = NULL;
     }
 
     for (i = 0; i < UTAG_INTERNAL_LIMIT; i++)
@@ -306,4 +307,12 @@ void lua_close(lua_State* L)
     L = L->global->mainthread; // only the main thread can be closed
     luaF_close(L, L->stack);   // close all upvalues for this thread
     close_state(L);
+}
+
+// Out of line so LTO cannot inline the cold liveness path back into the interpreter loop
+LUAU_NOINLINE int luaE_lightuserdatadead(lua_State* L, const TValue* o)
+{
+    unsigned tag = unsigned(lightuserdatatag(o));
+    lua_LightUserdataLiveness check = tag < LUA_LUTAG_LIMIT ? L->global->ludataliveness[tag] : NULL;
+    return check && !check(pvalue(o));
 }
