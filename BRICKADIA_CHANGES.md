@@ -63,8 +63,9 @@ has non-trivial temporaries.
 
 Upstream's experimental `integer` type only implements equality and exposes
 arithmetic through `integer.*` functions. Brickadia adds native wrapping
-`+`, `-`, `*`, signed `/`, floored `//` and `%`, unary negation, and signed
+`+`, `-`, `*`, `^`, signed `/`, floored `//` and `%`, unary negation, and signed
 ordering operators. Mixed integer/number operations remain type errors.
+`^` uses wrapping exponentiation by squaring and errors on negative exponents.
 
 
 ## 5. Liveness checks for tagged light userdata
