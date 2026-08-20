@@ -518,6 +518,24 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
             setlvalue(ra, result);
             return;
         }
+        case TM_POW:
+        {
+            if (nc < 0)
+                luaG_runerror(L, "negative exponent");
+
+            uint64_t result = 1;
+            uint64_t base = uint64_t(nb);
+
+            for (uint64_t exp = uint64_t(nc); exp; exp >>= 1)
+            {
+                if (exp & 1)
+                    result *= base;
+                base *= base;
+            }
+
+            setlvalue(ra, int64_t(result));
+            return;
+        }
         case TM_UNM:
             setlvalue(ra, int64_t(~uint64_t(nb) + 1));
             return;
