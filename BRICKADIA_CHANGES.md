@@ -102,3 +102,21 @@ include path (Brickadia uses its own 0.8.3 copy, not the engine's 0.8.0).
 Bytecode compiled with the old hash still runs correctly: the compiler's hash
 only seeds the predicted slot of `GETTABLEKS`/`SETTABLEKS`/`NAMECALL`/
 `GETGLOBAL`/`SETGLOBAL`, which the VM re-patches on the first miss.
+
+## 7. Exchanging string hashes with the host
+
+Hosts that cache a string's hash (Brickadia's wire strings cache exactly
+Luau's) can pass it in both directions instead of hashing twice:
+
+```c
+void lua_pushlstringhashed(lua_State* L, const char* s, size_t l, unsigned int hash);
+const char* lua_tolstringhashed(lua_State* L, int idx, size_t* len, unsigned int* hash);
+```
+
+`lua_tolstringhashed` behaves as `lua_tolstring` and also returns the string's
+stored hash.
+
+`hash` must be the low 32 bits of `XXH3_64bits(s, l)`, i.e. `luaS_hash(s, l)`;
+assert builds check it. Internally `luaS_newlstr` now hashes and forwards to
+`luaS_newlstrhashed`, whose string table walk compares each entry's stored
+hash before its length and bytes, so bucket collisions skip the `memcmp`.

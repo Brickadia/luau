@@ -120,10 +120,15 @@ TString* luaS_buffinish(lua_State* L, TString* ts)
 
 TString* luaS_newlstr(lua_State* L, const char* str, size_t l)
 {
-    unsigned int h = luaS_hash(str, l);
+    return luaS_newlstrhashed(L, str, l, luaS_hash(str, l));
+}
+
+TString* luaS_newlstrhashed(lua_State* L, const char* str, size_t l, unsigned int h)
+{
+    LUAU_ASSERT(h == luaS_hash(str, l));
     for (TString* el = L->global->strt.hash[lmod(h, L->global->strt.size)]; el != NULL; el = el->next)
     {
-        if (el->len == l && (memcmp(str, getstr(el), l) == 0))
+        if (el->hash == h && el->len == l && (memcmp(str, getstr(el), l) == 0))
         {
             // string may be dead
             if (isdead(L->global, obj2gco(el)))

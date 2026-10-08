@@ -514,6 +514,13 @@ const char* lua_tolstring(lua_State* L, int idx, size_t* len)
     return svalue(o);
 }
 
+const char* lua_tolstringhashed(lua_State* L, int idx, size_t* len, unsigned int* hash)
+{
+    const char* s = lua_tolstring(L, idx, len);
+    *hash = s ? tsvalue(index2addr(L, idx))->hash : 0;
+    return s;
+}
+
 const char* lua_tostringatom(lua_State* L, int idx, int* atom)
 {
     StkId o = index2addr(L, idx);
@@ -748,6 +755,16 @@ void lua_pushlstring(lua_State* L, const char* s, size_t len)
     luaC_threadbarrier(L);
     ensure_stack(L, 1);
     setsvalue(L, L->top, luaS_newlstr(L, s, len));
+    api_incr_top(L);
+}
+
+void lua_pushlstringhashed(lua_State* L, const char* s, size_t len, unsigned int hash)
+{
+    api_check(L, s != nullptr);
+    luaC_checkGC(L);
+    luaC_threadbarrier(L);
+    ensure_stack(L, 1);
+    setsvalue(L, L->top, luaS_newlstrhashed(L, s, len, hash));
     api_incr_top(L);
 }
 
