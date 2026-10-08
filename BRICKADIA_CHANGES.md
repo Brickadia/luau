@@ -88,3 +88,17 @@ Values of other types pay at most one extra predicted branch.
 
 Native codegen must not be enabled while liveness checks are registered; its
 inlined truthiness operations still treat all light userdata as truthy.
+
+
+## 6. XXH3 string hash
+
+`luaS_hash` and `BytecodeBuilder::getStringHash` use the low 32 bits of
+`XXH3_64bits` instead of the Lua 5.1 shift-add-xor hash (with a lookup3-style
+prefix mix for strings of 32 bytes or more). XXH3 is faster at every length and
+mixes the low bits used for string table and table slot selection far better.
+Both include `xxhash.h` with `XXH_INLINE_ALL`; the host build provides the
+include path (Brickadia uses its own 0.8.3 copy, not the engine's 0.8.0).
+
+Bytecode compiled with the old hash still runs correctly: the compiler's hash
+only seeds the predicted slot of `GETTABLEKS`/`SETTABLEKS`/`NAMECALL`/
+`GETGLOBAL`/`SETGLOBAL`, which the VM re-patches on the first miss.

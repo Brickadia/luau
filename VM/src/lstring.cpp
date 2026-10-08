@@ -7,39 +7,13 @@
 
 #include <string.h>
 
+#define XXH_INLINE_ALL
+#include "xxhash.h"
+
 unsigned int luaS_hash(const char* str, size_t len)
 {
     // Note that this hashing algorithm is replicated in BytecodeBuilder.cpp, BytecodeBuilder::getStringHash
-    unsigned int a = 0, b = 0;
-    unsigned int h = unsigned(len);
-
-    // hash prefix in 12b chunks (using aligned reads) with ARX based hash (LuaJIT v2.1, lookup3)
-    // note that we stop at length<32 to maintain compatibility with Lua 5.1
-    while (len >= 32)
-    {
-#define rol(x, s) ((x >> s) | (x << (32 - s)))
-#define mix(u, v, w) a ^= h, a -= rol(h, u), b ^= a, b -= rol(a, v), h ^= b, h -= rol(b, w)
-
-        // should compile into fast unaligned reads
-        uint32_t block[3];
-        memcpy(block, str, 12);
-
-        a += block[0];
-        b += block[1];
-        h += block[2];
-        mix(14, 11, 25);
-        str += 12;
-        len -= 12;
-
-#undef mix
-#undef rol
-    }
-
-    // original Lua 5.1 hash for compatibility (exact match when len<32)
-    for (size_t i = len; i > 0; --i)
-        h ^= (h << 5) + (h >> 2) + (uint8_t)str[i - 1];
-
-    return h;
+    return unsigned(XXH3_64bits(str, len));
 }
 
 void luaS_resize(lua_State* L, int newsize)

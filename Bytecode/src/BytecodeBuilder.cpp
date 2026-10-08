@@ -11,6 +11,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define XXH_INLINE_ALL
+#include "xxhash.h"
+
 LUAU_FASTFLAG(LuauIntegerType2)
 LUAU_FASTFLAG(DebugLuauUserDefinedClasses)
 LUAU_FASTFLAGVARIABLE(LuauCompileUndoEmitAdjust)
@@ -1336,20 +1339,10 @@ int BytecodeBuilder::decomposeImportId(uint32_t ids, int32_t& id0, int32_t& id1,
 
 uint32_t BytecodeBuilder::getStringHash(StringRef key)
 {
-    // This hashing algorithm should match luaS_hash defined in VM/lstring.cpp for short inputs; we can't use that code directly to keep compiler and
-    // VM independent in terms of compilation/linking. The resulting string hashes are embedded into bytecode binary and result in a better initial
-    // guess for the field hashes which improves performance during initial code execution. We omit the long string processing here for simplicity, as
-    // it doesn't really matter on long identifiers.
-    const char* str = key.data;
-    size_t len = key.length;
-
-    unsigned int h = unsigned(len);
-
-    // original Lua 5.1 hash for compatibility (exact match when len<32)
-    for (size_t i = len; i > 0; --i)
-        h ^= (h << 5) + (h >> 2) + (uint8_t)str[i - 1];
-
-    return h;
+    // This hashing algorithm should match luaS_hash defined in VM/lstring.cpp; we can't use that code directly to keep compiler and VM independent
+    // in terms of compilation/linking. The resulting string hashes are embedded into bytecode binary and result in a better initial guess for the
+    // field hashes which improves performance during initial code execution.
+    return uint32_t(XXH3_64bits(key.data, key.length));
 }
 
 void BytecodeBuilder::foldJumps()
