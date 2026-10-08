@@ -115,3 +115,30 @@ it narrows `h` to `never` in the else branch.
 
 Native codegen must not be enabled while liveness checks are registered; its
 inlined truthiness operations still treat all light userdata as truthy.
+
+## 5. XXH3 string hash
+
+`luaS_hash` and `BytecodeBuilder::getStringHash` use the low 32 bits of
+`XXH3_64bits` instead of the Lua 5.1 shift-add-xor hash (with a lookup3-style
+prefix mix for strings of 32 bytes or more). XXH3 is faster at every length and
+mixes the low bits used for string table and table slot selection far better.
+Both include `xxhash.h` with `XXH_INLINE_ALL` from `extern/xxhash` (v0.8.3,
+unmodified); hosts building Luau themselves add that include path.
+String table walks compare the stored hash before length and bytes.
+
+Bytecode compiled with the old hash still runs correctly: the compiler's hash
+only seeds the predicted slot of `GETTABLEKS`/`SETTABLEKS`/`NAMECALL`/
+`GETGLOBAL`/`SETGLOBAL`, which the VM re-patches on the first miss.
+
+Hosts that cache a string's hash (Brickadia's wire strings cache exactly
+Luau's) can pass it in both directions instead of hashing twice:
+
+```c
+void lua_pushlstringhashed(lua_State* L, const char* s, size_t l, unsigned int hash);
+const char* lua_tolstringhashed(lua_State* L, int idx, size_t* len, unsigned int* hash);
+```
+
+`hash` must equal `luaS_hash(s, l)`; assert builds check it, and a wrong hash
+silently breaks interning in other builds. `lua_tolstringhashed` behaves as
+`lua_tolstring` and also returns the string's stored hash; either out pointer
+may be NULL.
