@@ -3480,18 +3480,16 @@ reentry:
                 uint32_t aux = *pc++;
                 uint32_t kidx = LUAU_INSN_AUX_KV16(aux);
                 TValue* kv = VM_KV(kidx);
+                int utag;
+                void* udata;
 
-                if (LUAU_LIKELY(ttisuserdata(rb)))
+                if (lua_UdataDirectAccessData* udatadirect = luaE_udatadirect(L->global, rb, &utag, &udata); LUAU_LIKELY(udatadirect != nullptr))
                 {
-                    int utag = uvalue(rb)->tag;
-                    lua_UdataDirectAccessData& udatadirect = L->global->udatadirect[utag];
-                    lua_UserdataDirectAccess onudataindex = udatadirect.index;
-                    TValue* tm = &udatadirect.indextm;
+                    lua_UserdataDirectAccess onudataindex = udatadirect->index;
+                    TValue* tm = &udatadirect->indextm;
 
                     if (LUAU_LIKELY(onudataindex != nullptr && !ttisnil(tm)))
                     {
-                        void* udata = uvalue(rb)->data;
-
                         // note: it's safe to push arguments past top for complicated reasons (see top of the file)
                         LUAU_ASSERT(L->top + 3 < L->stack + L->stacksize);
                         StkId top = L->top;
@@ -3554,18 +3552,16 @@ reentry:
                 uint32_t aux = *pc++;
                 uint32_t kidx = LUAU_INSN_AUX_KV16(aux);
                 TValue* kv = VM_KV(kidx);
+                int utag;
+                void* udata;
 
-                if (LUAU_LIKELY(ttisuserdata(rb)))
+                if (lua_UdataDirectAccessData* udatadirect = luaE_udatadirect(L->global, rb, &utag, &udata); LUAU_LIKELY(udatadirect != nullptr))
                 {
-                    int utag = uvalue(rb)->tag;
-                    lua_UdataDirectAccessData& udatadirect = L->global->udatadirect[utag];
-                    lua_UserdataDirectAccess onudatanewindex = udatadirect.newindex;
-                    TValue* tm = &udatadirect.newindextm;
+                    lua_UserdataDirectAccess onudatanewindex = udatadirect->newindex;
+                    TValue* tm = &udatadirect->newindextm;
 
                     if (LUAU_LIKELY(onudatanewindex != nullptr && !ttisnil(tm)))
                     {
-                        void* udata = uvalue(rb)->data;
-
                         // note: it's safe to push arguments past top for complicated reasons (see top of the file)
                         LUAU_ASSERT(L->top + 4 < L->stack + L->stacksize);
                         StkId top = L->top;
@@ -3623,18 +3619,16 @@ reentry:
                 uint32_t aux = *pc++;
                 uint32_t kidx = LUAU_INSN_AUX_KV16(aux);
                 TValue* kv = VM_KV(kidx);
+                int utag;
+                void* udata;
 
-                if (LUAU_LIKELY(ttisuserdata(rb)))
+                if (lua_UdataDirectAccessData* udatadirect = luaE_udatadirect(L->global, rb, &utag, &udata); LUAU_LIKELY(udatadirect != nullptr))
                 {
-                    int utag = uvalue(rb)->tag;
-                    lua_UdataDirectAccessData& udatadirect = L->global->udatadirect[utag];
-                    lua_UserdataDirectNamecall onudatanamecall = udatadirect.namecall;
-                    TValue* tm = &udatadirect.namecalltm;
+                    lua_UserdataDirectNamecall onudatanamecall = udatadirect->namecall;
+                    TValue* tm = &udatadirect->namecalltm;
 
                     if (LUAU_LIKELY(onudatanamecall != nullptr && !ttisnil(tm)))
                     {
-                        void* udata = uvalue(rb)->data;
-
                         // note: order of copies allows rb to alias ra+1 or ra
                         setobj2s(L, ra + 1, rb);
                         setobj2s(L, ra, tm);

@@ -904,6 +904,15 @@ static void markudatadirectaccess(global_State* g)
         markvalue(g, &udatadirect.newindextm);
         markvalue(g, &udatadirect.namecalltm);
     }
+
+    for (int i = 0; g->ludatadirect && i < LUA_LUTAG_LIMIT; i++)
+    {
+        lua_UdataDirectAccessData& udatadirect = g->ludatadirect[i];
+
+        markvalue(g, &udatadirect.indextm);
+        markvalue(g, &udatadirect.newindextm);
+        markvalue(g, &udatadirect.namecalltm);
+    }
 }
 
 static void markudatadirectfields(global_State* g)

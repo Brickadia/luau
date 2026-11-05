@@ -278,6 +278,7 @@ typedef struct global_State
     TString* lightuserdataname[LUA_LUTAG_LIMIT]; // names for tagged lightuserdata
     LuaTable* ludatamt[LUA_LUTAG_LIMIT]; // metatables for tagged lightuserdata
     lua_LightUserdataLiveness ludataliveness[LUA_LUTAG_LIMIT]; // liveness checks making dead tagged lightuserdata falsy
+    lua_UdataDirectAccessData* ludatadirect; // per lightuserdata tag direct access, allocated on first registration
 
     // per-tag direct field dispatch tables; NULL until first field is registered for that tag
     struct LuaTable* udatadirectfields[UTAG_INTERNAL_LIMIT];
@@ -393,6 +394,26 @@ static LUAU_FORCEINLINE LuaTable* luaE_lightuserdatamt(global_State* g, const TV
 static LUAU_FORCEINLINE LuaTable* luaE_udatamt(global_State* g, const TValue* o)
 {
     return ttisuserdata(o) ? uvalue(o)->metatable : ttislightuserdata(o) ? luaE_lightuserdatamt(g, o) : NULL;
+}
+
+// Direct access entry of a userdata or tagged lightuserdata, with the tag and data pointer its callbacks receive.
+static LUAU_FORCEINLINE lua_UdataDirectAccessData* luaE_udatadirect(global_State* g, const TValue* o, int* tag, void** data)
+{
+    if (ttisuserdata(o))
+    {
+        *tag = uvalue(o)->tag;
+        *data = uvalue(o)->data;
+        return &g->udatadirect[*tag];
+    }
+
+    if (ttislightuserdata(o) && g->ludatadirect && unsigned(lightuserdatatag(o)) < LUA_LUTAG_LIMIT)
+    {
+        *tag = lightuserdatatag(o);
+        *data = pvalue(o);
+        return &g->ludatadirect[*tag];
+    }
+
+    return NULL;
 }
 
 LUAI_FUNC lua_State* luaE_newthread(lua_State* L);

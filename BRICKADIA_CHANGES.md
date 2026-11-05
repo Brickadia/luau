@@ -143,6 +143,29 @@ silently breaks interning in other builds. `lua_tolstringhashed` behaves as
 `lua_tolstring` and also returns the string's stored hash; either out pointer
 may be NULL.
 
+## 6. Direct access for tagged light userdata
+
+Upstream's `lua_registeruserdatadirectaccess` lets the `GETUDATAKS`, `SETUDATAKS` and
+`NAMECALLUDATA` instructions call a userdata tag's callbacks directly, with the key's atom,
+instead of resolving `__index`/`__newindex`/`__namecall` through the metatable and calling
+them. Brickadia's objects, handles and components are tagged light userdata, so the same is
+registered per light tag:
+
+```c
+int lua_registerlightuserdatadirectaccess(lua_State* L, int tag, lua_UserdataDirectAccess get,
+    lua_UserdataDirectAccess set, lua_UserdataDirectNamecall namecall);
+```
+
+The tag's metatable must be set first; as upstream, only metamethods it has are called
+directly. Callbacks receive the light userdata's pointer as `data` and its tag as `utag`, and
+run in the frame the metamethod would, so the receiver is at stack index 1. The per-instruction
+`cachedslot` is shared with full userdata callbacks. Direct field getters remain full userdata
+only, since they cannot raise errors for dead handles.
+
+The per-tag table is allocated on the first registration rather than held in `global_State`,
+which keeps the main state allocation below 32 KB: `HugeFunctionLoadFailure` treats any larger
+allocation as one of the two it fails on purpose.
+
 ## Testing
 
 `tests/Brickadia.test.cpp` (Luau.Conformance) and `tests/Brickadia.TypeInfer.test.cpp`

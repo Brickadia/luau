@@ -202,6 +202,65 @@ static int handlerThrows(lua_State* L)
     return 0;
 }
 
+enum DirectAtom : int16_t
+{
+    kAtomX = 1,
+    kAtomBoom = 2,
+    kAtomCount = 3,
+};
+
+static int sDirectHits = 0;
+static int sMetaHits = 0;
+static int sDirectSlotSeen = 0;
+static double sDirectWritten = 0;
+
+static int16_t directAtom(lua_State*, const char* s, size_t l)
+{
+    const std::string name(s, l);
+    return name == "x" ? kAtomX : name == "boom" ? kAtomBoom : name == "count" ? kAtomCount : -1;
+}
+
+// Direct callbacks see the receiver at 1 and the key or arguments after it, as a metamethod would.
+static void directIndex(lua_State* L, void* data, int atom, uint16_t* cachedslot, int tag)
+{
+    ++sDirectHits;
+    sDirectSlotSeen = *cachedslot > sDirectSlotSeen ? *cachedslot : sDirectSlotSeen;
+    *cachedslot = 7;
+
+    if (atom == kAtomBoom)
+        luaL_error(L, "direct boom");
+
+    const bool sameReceiver = lua_tolightuserdatatagged(L, 1, tag) == data && strcmp(lua_tostring(L, 2), "x") == 0;
+    lua_pushnumber(L, sameReceiver && data == &sLiveHandle ? atom * 100 + tag : -1);
+}
+
+static void directNewIndex(lua_State* L, void* data, int atom, uint16_t*, int tag)
+{
+    ++sDirectHits;
+    sDirectWritten = lua_gettop(L) == 3 && atom == kAtomX && lua_tolightuserdatatagged(L, 1, tag) == data ? lua_tonumber(L, 3) : -1;
+}
+
+static int directNamecall(lua_State* L, void* data, int atom, uint16_t*, int tag)
+{
+    ++sDirectHits;
+    lua_pushinteger(L, atom == kAtomCount && lua_tolightuserdatatagged(L, 1, tag) == data ? lua_gettop(L) - 1 : -1);
+    return 1;
+}
+
+static int metaIndex(lua_State* L)
+{
+    ++sMetaHits;
+    lua_pushfstring(L, "meta:%s", luaL_checkstring(L, 2));
+    return 1;
+}
+
+static int metaNamecall(lua_State* L)
+{
+    ++sMetaHits;
+    lua_pushstring(L, "meta call");
+    return 1;
+}
+
 static const luaL_Reg kPrethrowFunctions[] = {
     {"PrethrowHits", prethrowHits},
     {"ThrowWithPrethrow", throwWithPrethrow},
@@ -338,6 +397,86 @@ TEST_CASE("LightuserdataTagMetatables")
     REQUIRE(lua_getmetatable(L, -1));
     lua_getglobal(L, "TaggedMt");
     CHECK(lua_rawequal(L, -1, -2));
+}
+
+TEST_CASE("LightuserdataDirectAccess")
+{
+    StateRef state = newState();
+    lua_State* L = state.get();
+    lua_callbacks(L)->useratom = directAtom;
+
+    // Tag 11 is registered for direct access; tag 12 has the same metatable shape without it.
+    for (int tag : {11, 12})
+    {
+        lua_newtable(L);
+        lua_pushcfunction(L, metaIndex, "metaIndex");
+        lua_setfield(L, -2, "__index");
+        lua_pushcfunction(L, metaIndex, "metaNewIndex");
+        lua_setfield(L, -2, "__newindex");
+        lua_pushcfunction(L, metaNamecall, "metaNamecall");
+        lua_setfield(L, -2, "__namecall");
+        lua_setlightuserdatametatable(L, tag);
+    }
+
+    CHECK(lua_registerlightuserdatadirectaccess(L, 11, directIndex, directNewIndex, directNamecall) == 1);
+    CHECK(lua_registerlightuserdatadirectaccess(L, 13, directIndex, directNewIndex, directNamecall) == 0);
+
+    lua_pushlightuserdatatagged(L, &sLiveHandle, 11);
+    lua_setglobal(L, "Direct");
+    lua_pushlightuserdatatagged(L, &sLiveHandle, 12);
+    lua_setglobal(L, "Meta");
+
+    // Tag 14's __index is cleared after registering, so only the direct access table keeps it alive.
+    lua_newtable(L);
+    lua_pushcfunction(L, metaIndex, "rootedDirect");
+    lua_setfield(L, -2, "__index");
+    lua_pushvalue(L, -1);
+    lua_setlightuserdatametatable(L, 14);
+    CHECK(lua_registerlightuserdatadirectaccess(L, 14, directIndex, nullptr, nullptr) == 1);
+    lua_pushnil(L);
+    lua_setfield(L, -2, "__index");
+    lua_pop(L, 1);
+
+    lua_pushlightuserdatatagged(L, &sLiveHandle, 14);
+    lua_setglobal(L, "Rooted");
+
+    lua_gc(L, LUA_GCCOLLECT, 0);
+    lua_gc(L, LUA_GCCOLLECT, 0);
+    luaC_validate(L);
+
+    sDirectHits = 0;
+    sMetaHits = 0;
+    sDirectSlotSeen = 0;
+
+    // Locals throughout: from O1 a global path like Direct.x compiles to GETIMPORT, which never uses direct access.
+    runScript(L, R"(
+        local direct, meta, rooted = Direct, Meta, Rooted
+        local function get(o) return o.x end
+        for _ = 1, 3 do assert(get(direct) == 111) end
+        assert(rooted.x == 114)
+
+        direct.x = 42
+        assert(direct:count(1, 2, 3) == 3)
+
+        assert(meta.x == "meta:x")
+        assert(meta:count() == "meta call")
+
+        local ok, err = pcall(function() return direct.boom end)
+        assert(not ok and string.find(err, "direct boom", 1, true), err)
+        assert(get(direct) == 111)
+
+        -- A site that sees anything else falls back to the regular path for good, and keeps working.
+        -- A global so O2 can't inline it into two separate sites.
+        Poly = function(o) return o.x end
+        assert(Poly({ x = 5 }) == 5)
+        assert(Poly(direct) == "meta:x")
+    )");
+
+    // Per run: three gets, the rooted get, one set, one call, the boom and the get after it.
+    CHECK(sDirectHits == 8 * kOptimizationLevels);
+    CHECK(sMetaHits == 3 * kOptimizationLevels);
+    CHECK(sDirectSlotSeen == 7);
+    CHECK(sDirectWritten == 42);
 }
 
 TEST_CASE("PrethrowCleanup")

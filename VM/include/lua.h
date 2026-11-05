@@ -454,6 +454,15 @@ LUA_API int lua_registeruserdatadirectaccess(
     lua_UserdataDirectNamecall namecall
 );
 
+// The same for a lightuserdata tag with a metatable from lua_setlightuserdatametatable; data is the pointer value.
+LUA_API int lua_registerlightuserdatadirectaccess(
+    lua_State* L,
+    int tag,
+    lua_UserdataDirectAccess get,
+    lua_UserdataDirectAccess set,
+    lua_UserdataDirectNamecall namecall
+);
+
 /*
 ** Direct field API
 **

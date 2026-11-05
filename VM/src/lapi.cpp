@@ -9,6 +9,7 @@
 #include "ltable.h"
 #include "lfunc.h"
 #include "lgc.h"
+#include "lmem.h"
 #include "ldo.h"
 #include "ltm.h"
 #include "ludata.h"
@@ -2111,22 +2112,20 @@ const char* lua_getuserdataname(lua_State* L, int tag)
     return tname;
 }
 
-int lua_registeruserdatadirectaccess(
+static int registerdirectaccess(
     lua_State* L,
-    int tag,
+    LuaTable* h,
+    lua_UdataDirectAccessData& udatadirect,
     lua_UserdataDirectAccess get,
     lua_UserdataDirectAccess set,
     lua_UserdataDirectNamecall namecall
 )
 {
-    api_check(L, unsigned(tag) < LUA_UTAG_LIMIT);
     luaC_threadbarrier(L);
 
-    if (LuaTable* h = L->global->udatamt[tag])
+    if (h)
     {
         // only metamehtods that are present will be called directly
-        lua_UdataDirectAccessData& udatadirect = L->global->udatadirect[tag];
-
         if (const TValue* indextm = fasttm(L, h, TM_INDEX))
         {
             udatadirect.indextm = *indextm;
@@ -2149,6 +2148,41 @@ int lua_registeruserdatadirectaccess(
     }
 
     return 0;
+}
+
+int lua_registeruserdatadirectaccess(
+    lua_State* L,
+    int tag,
+    lua_UserdataDirectAccess get,
+    lua_UserdataDirectAccess set,
+    lua_UserdataDirectNamecall namecall
+)
+{
+    api_check(L, unsigned(tag) < LUA_UTAG_LIMIT);
+    return registerdirectaccess(L, L->global->udatamt[tag], L->global->udatadirect[tag], get, set, namecall);
+}
+
+int lua_registerlightuserdatadirectaccess(
+    lua_State* L,
+    int tag,
+    lua_UserdataDirectAccess get,
+    lua_UserdataDirectAccess set,
+    lua_UserdataDirectNamecall namecall
+)
+{
+    api_check(L, unsigned(tag) < LUA_LUTAG_LIMIT);
+    global_State* g = L->global;
+
+    if (!g->ludatamt[tag])
+        return 0;
+
+    if (!g->ludatadirect)
+    {
+        g->ludatadirect = luaM_newarray(L, LUA_LUTAG_LIMIT, lua_UdataDirectAccessData, 0);
+        memset(g->ludatadirect, 0, LUA_LUTAG_LIMIT * sizeof(lua_UdataDirectAccessData));
+    }
+
+    return registerdirectaccess(L, g->ludatamt[tag], g->ludatadirect[tag], get, set, namecall);
 }
 
 void lua_setlightuserdataname(lua_State* L, int tag, const char* name)
