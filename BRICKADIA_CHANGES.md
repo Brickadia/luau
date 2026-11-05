@@ -142,3 +142,20 @@ const char* lua_tolstringhashed(lua_State* L, int idx, size_t* len, unsigned int
 silently breaks interning in other builds. `lua_tolstringhashed` behaves as
 `lua_tolstring` and also returns the string's stored hash; either out pointer
 may be NULL.
+
+## Testing
+
+`tests/Brickadia.test.cpp` (Luau.Conformance) and `tests/Brickadia.TypeInfer.test.cpp`
+(Luau.UnitTest) test the changes above; they are added to the test targets at the
+end of `Sources.cmake` so upstream's lists stay untouched. The `LU_TAG_ITERATOR`
+move is not observable from scripts and has no test.
+
+`tools/brickadia-test.ps1` builds both suites with
+`LUAU_ENABLE_ASSERT`, in upstream's configuration and in Brickadia's
+(`LUA_USE_LONGJMP=1`, raised light userdata tag limit), runs them with default flags and with
+`--fflags=true`, and compares the failures against
+`tests/brickadia-expected-failures.txt`, which lists each upstream test that fails
+on purpose and why. Any other failure, an expected failure that starts passing, or
+a crash fails the run. Pass `-FlagsSince <previous tag>` when syncing to list the
+flags added and removed upstream: Brickadia enables every non-experimental `Luau*`
+flag, so new ones go live without review otherwise.

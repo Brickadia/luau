@@ -681,3 +681,14 @@ if(TARGET Luau.Bytecode.CLI)
     target_sources(Luau.Bytecode.CLI PRIVATE
         CLI/src/Bytecode.cpp)
 endif()
+
+# Brickadia's own tests, kept out of the upstream lists above so syncs don't conflict (see BRICKADIA_CHANGES.md)
+if(TARGET Luau.UnitTest)
+    target_sources(Luau.UnitTest PRIVATE
+        tests/Brickadia.TypeInfer.test.cpp)
+endif()
+
+if(TARGET Luau.Conformance)
+    target_sources(Luau.Conformance PRIVATE
+        tests/Brickadia.test.cpp)
+endif()

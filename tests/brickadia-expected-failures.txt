@@ -1,0 +1,32 @@
+# Upstream tests that fail on purpose in this fork. Checked by tools/brickadia-test.ps1.
+# Format: <modes> | <unit|conformance> | <suite> :: <test case> | <reason>
+# Modes: all = every run; allflags = only with --fflags=true; longjmp = only with LUA_USE_LONGJMP=1.
+
+# XXH3 string hash: bytecode dumps print predicted slots and table shapes, and iteration order changes.
+all | unit | BytecodeCompiler :: call_feedback_slots | hash
+all | unit | BytecodeCompiler :: for_loop_and_backward_input | hash
+all | unit | BytecodeCompiler :: generic_for_loop | hash
+all | unit | BytecodeCompiler :: inheriting_classes_bytecode_roundtrips | hash
+all | unit | BytecodeCompiler :: multi_call_fixed | hash
+all | unit | BytecodeCompiler :: nested_numeric_for_loops | hash
+all | unit | BytecodeCompiler :: numeric_for_loop_backedge | hash
+all | unit | BytecodeCompiler :: tables_strings_and_fastcall | hash
+all | unit | BytecodeInliner :: feedback_slots_after_inlining | hash
+all | unit | BytecodeInliner :: inlinee_feedback_slots_after_inlining | hash
+all | unit | BytecodeInliner :: slot_allocation_keeps_unread_call_results_in_frame | hash
+all | unit | Compiler :: ClassConstruction | hash
+all | unit | Compiler :: DumpConstantsTables | hash
+all | conformance | Conformance :: Basic | hash: pairs order in basic.luau
+all | conformance | Conformance :: Tables | hash: pairs order in tables.luau
+all | conformance | Conformance :: InterruptInspection | hash: runs basic.luau
+
+# Native integer operators: upstream expects unary minus on a non-literal integer to be an error.
+all | unit | TypeInferOperators :: negating_a_non_literal_integer_is_an_error | integer operators
+allflags | unit | TypeInferOperators :: typecheck_unary_minus | integer operators: wanted type is number | integer
+allflags | unit | ErrorTests :: unary_op_type_function_errors | integer operators: wanted type is number | integer
+allflags | conformance | Conformance :: Integers | integer operators: integers.luau expects -x to error
+
+# LUA_USE_LONGJMP=1: skips C++ destructors and changes unwinding these tests rely on. Pristine upstream fails them too.
+longjmp | unit | ConfigLuauTest :: interrupt_execution | longjmp
+longjmp | unit | UserDefinedTypeFunctionTests :: udtf_areequal_stack_overflow_on_deep_types | longjmp
+longjmp | conformance | IrLowering :: ForInManualAnnotation | longjmp
