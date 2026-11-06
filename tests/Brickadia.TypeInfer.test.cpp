@@ -150,4 +150,16 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "unknown_field_in_an_assignment_is_reported_o
     LUAU_REQUIRE_ERROR_COUNT(1, result);
 }
 
+TEST_CASE_FIXTURE(BuiltinsFixture, "requiring_a_module_that_returns_nothing_gives_nil")
+{
+    DOES_NOT_PASS_OLD_SOLVER_GUARD();
+    fileResolver.source["game/A"] = "local x = 1";
+    fileResolver.source["game/B"] = "local a = require(game.A)";
+
+    CheckResult result = getFrontend().check("game/B");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+    CHECK_EQ("nil", toString(requireType("game/B", "a")));
+}
+
 TEST_SUITE_END();

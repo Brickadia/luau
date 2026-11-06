@@ -4369,12 +4369,10 @@ TypeId ConstraintSolver::DEPRECATED_resolveModule(const ModuleInfo& info, const 
     if (get<ErrorTypePack>(modulePack))
         return builtinTypes->errorType;
 
+    // A module that returns nothing is required for its side effects; Brickadia's require yields nil for it.
     std::optional<TypeId> moduleType = first(modulePack);
     if (!moduleType)
-    {
-        DEPRECATED_reportError(IllegalRequire{module->humanReadableName, "Module does not return exactly 1 value. It cannot be required."}, location);
-        return builtinTypes->errorType;
-    }
+        return builtinTypes->nilType;
 
     return *moduleType;
 }
@@ -4412,14 +4410,10 @@ TypeId ConstraintSolver::resolveModule(const ModuleInfo& info, const Location& l
     if (get<ErrorTypePack>(modulePack))
         return builtinTypes->errorType;
 
+    // A module that returns nothing is required for its side effects; Brickadia's require yields nil for it.
     std::optional<TypeId> moduleType = first(modulePack);
     if (!moduleType)
-    {
-        reportError(
-            IllegalRequire{module->humanReadableName, "Module does not return exactly 1 value. It cannot be required."}, location, moduleName
-        );
-        return builtinTypes->errorType;
-    }
+        return builtinTypes->nilType;
 
     return *moduleType;
 }

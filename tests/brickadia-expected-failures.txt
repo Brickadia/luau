@@ -26,6 +26,9 @@ allflags | unit | TypeInferOperators :: typecheck_unary_minus | integer operator
 allflags | unit | ErrorTests :: unary_op_type_function_errors | integer operators: wanted type is number | integer
 allflags | conformance | Conformance :: Integers | integer operators: integers.luau expects -x to error
 
+# Requiring a module that returns nothing types as nil under the new solver, matching Brickadia's require.
+all | unit | TypeInferModules :: require_module_that_does_not_export | nil require
+
 # LUA_USE_LONGJMP=1: skips C++ destructors and changes unwinding these tests rely on. Pristine upstream fails them too.
 longjmp | unit | ConfigLuauTest :: interrupt_execution | longjmp
 longjmp | unit | UserDefinedTypeFunctionTests :: udtf_areequal_stack_overflow_on_deep_types | longjmp

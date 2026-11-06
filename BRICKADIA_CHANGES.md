@@ -185,6 +185,12 @@ normalization. `Substitution` copies the flag so instantiated aliases (`ContentK
 keep it. Not covered: literals wrapped in parentheses or `if`/`or` when passed to a call, definition
 tables inside intersections, and non-strict files.
 
+## 8. Requiring a module that returns nothing gives nil
+
+A module required only for its side effects (`require("./weapons/pistol")`) returns nothing.
+Upstream reports "Module does not return exactly 1 value"; the new solver types such a require as
+`nil` instead, matching Brickadia's runtime require. The old solver is unchanged.
+
 ## Testing
 
 `tests/Brickadia.test.cpp` (Luau.Conformance) and `tests/Brickadia.TypeInfer.test.cpp`
