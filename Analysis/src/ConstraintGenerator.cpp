@@ -4891,6 +4891,7 @@ TypeId ConstraintGenerator::resolveTableType(const ScopePtr& scope, AstType* ty,
 
     ttv->definitionModuleName = module->name;
     ttv->definitionLocation = tab->location;
+    ttv->rejectsExtraProperties = module->mode == Mode::Definition;
 
     return tableTy;
 }

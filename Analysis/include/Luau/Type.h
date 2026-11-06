@@ -517,6 +517,8 @@ struct TableType
     std::optional<TableIndexer> indexer;
 
     TableState state = TableState::Unsealed;
+    // Declared in a definition file: table literals checked against it may not add properties it lacks.
+    bool rejectsExtraProperties = false;
     TypeLevel level;
     Scope* scope = nullptr;
     std::optional<std::string> name;
