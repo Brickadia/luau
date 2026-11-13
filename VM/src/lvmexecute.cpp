@@ -1469,11 +1469,6 @@ reentry:
                         // need to invoke metamethods).
                         break;
 
-                    case LUA_TINTEGER:
-                        pc += lvalue(ra) == lvalue(rb) ? LUAU_INSN_D(insn) : 1;
-                        VM_ASSERT_PC(pc);
-                        VM_NEXT();
-
                     default:
                         LUAU_ASSERT(!"Unknown value type");
                         LUAU_UNREACHABLE(); // improves switch() codegen by eliding opcode bounds checks
@@ -1601,11 +1596,6 @@ reentry:
                         // For now, hit the slow path after the switch (we may
                         // need to invoke metamethods).
                         break;
-
-                    case LUA_TINTEGER:
-                        pc += lvalue(ra) != lvalue(rb) ? LUAU_INSN_D(insn) : 1;
-                        VM_ASSERT_PC(pc);
-                        VM_NEXT();
 
                     default:
                         LUAU_ASSERT(!"Unknown value type");

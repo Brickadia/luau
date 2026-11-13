@@ -23,10 +23,7 @@ LUAU_FASTINT(LuauCompileInlineThresholdMaxBoost)
 LUAU_FASTINT(LuauCompileLoopUnrollThreshold)
 LUAU_FASTINT(LuauCompileLoopUnrollThresholdMaxBoost)
 LUAU_FASTINT(LuauRecursionLimit)
-LUAU_FASTFLAG(LuauIntegerType2)
 LUAU_FASTFLAG(LuauCompileTableFoldFix)
-LUAU_FASTFLAG(LuauIntegerFastcalls)
-LUAU_FASTFLAG(LuauIntegerBufferFastcalls)
 LUAU_FASTFLAG(LuauCompileNoDebugConst)
 LUAU_FASTFLAG(LuauCompileConcatTargetTop)
 LUAU_FASTFLAG(LuauExportValueSyntax)
@@ -247,6 +244,7 @@ TEST_CASE("BytecodeIsStable")
     // Bytecode type encoding (serialized & in-memory)
     // Note: these *can* change retroactively *if* type version is bumped, but probably shouldn't
     LUAU_ASSERT(LBC_TYPE_BUFFER == 9); // type version 1
+    CHECK(LBC_TYPE_INTEGER_DEPRECATED == 10); // reserved serialized ID for the retired integer type
     CHECK(LBC_TYPE_CLASS == 11);
     CHECK(LBC_TYPE_OBJECT == 12);
 }
@@ -13347,104 +13345,6 @@ RETURN R0 0
 )");
 }
 
-TEST_CASE("IntegerType")
-{
-    if (!FFlag::LuauIntegerType2)
-        return;
-
-    // i suffix
-    CHECK_EQ(
-        "\n" + compileFunction0(R"(
-local a = 123i
-return a
-)"),
-        R"(
-LOADK R0 K0 [123]
-RETURN R0 1
-)"
-    );
-
-    // separators
-    CHECK_EQ(
-        "\n" + compileFunction0(R"(
-local a = 1_000_000i
-return a
-)"),
-        R"(
-LOADK R0 K0 [1000000]
-RETURN R0 1
-)"
-    );
-
-    // hex
-    CHECK_EQ(
-        "\n" + compileFunction0(R"(
-local a = 0xABABi
-return a
-)"),
-        R"(
-LOADK R0 K0 [43947]
-RETURN R0 1
-)"
-    );
-
-    // binary
-    CHECK_EQ(
-        "\n" + compileFunction0(R"(
-local a = 0b100101i
-return a
-)"),
-        R"(
-LOADK R0 K0 [37]
-RETURN R0 1
-)"
-    );
-
-    // Has to be exactly representable; overflow is a parse error
-
-    std::string source1 = "local a = 9999999999999999999999999i";
-    std::string source2 = "local a = 2.37i";
-
-    std::string bc1 = Luau::compile(source1);
-    std::string bc2 = Luau::compile(source2);
-
-    // 0 acts as a special marker for error bytecode
-    CHECK_EQ(bc1[0], 0);
-    CHECK_EQ(bc2[0], 0);
-}
-
-TEST_CASE("IntegerBcb")
-{
-    ScopedFastFlag luauInteger{FFlag::LuauIntegerType2, true};
-    ScopedFastFlag luauCompileNoDebugConst{FFlag::LuauCompileNoDebugConst, true};
-
-    const char* source = R"(
-function foo(x)
-local a = 123i
-if x then a = 456i end
-return a
-end)";
-
-    Luau::BytecodeBuilder bcb;
-    bcb.setDumpFlags(Luau::BytecodeBuilder::Dump_Code | Luau::BytecodeBuilder::Dump_Types);
-    bcb.setDumpSource(source);
-
-    Luau::CompileOptions options;
-
-    options.typeInfoLevel = 1;
-    options.optimizationLevel = 1;
-
-    Luau::compileOrThrow(bcb, source, options);
-
-    CHECK_EQ("\n" + bcb.dumpFunction(0), R"(
-R1: integer from 0 to 4
-LOADK R1 K0 [123]
-JUMPIFNOT R0 L0
-LOADK R1 K1 [456]
-L0: RETURN R1 1
-)");
-}
-
 TEST_CASE("DebugNoInline")
 {
     ScopedFastFlag noInline{FFlag::DebugLuauNoInline, true};
@@ -14146,47 +14046,6 @@ L0: RETURN R0 0
     );
 }
 
-TEST_CASE("BufferIntegerFastcall")
-{
-    ScopedFastFlag luauIntegerFastcalls{FFlag::LuauIntegerFastcalls, true};
-    ScopedFastFlag luauIntegerBufferFastcalls{FFlag::LuauIntegerBufferFastcalls, true};
-
-    CHECK_EQ(
-        "\n" + compileFunction0(R"(
-local b = buffer.create(16)
-return buffer.readinteger(b, 0)
-)"),
-        R"(
-GETIMPORT R0 2 [buffer.create]
-LOADN R1 16
-CALL R0 1 1
-FASTCALL2K 131 R0 K3 L0 [0]
-MOVE R2 R0
-LOADK R3 K3 [0]
-GETIMPORT R1 5 [buffer.readinteger]
-CALL R1 2 -1
-L0: RETURN R1 -1
-)"
-    );
-
-    CHECK_EQ(
-        "\n" + compileFunction0(R"(
-local b, v = ...
-buffer.writeinteger(b, 0, v)
-)"),
-        R"(
-GETVARARGS R0 2
-LOADN R4 0
-FASTCALL3 132 R0 R4 R1 L0
-MOVE R3 R0
-MOVE R5 R1
-GETIMPORT R2 2 [buffer.writeinteger]
-CALL R2 3 0
-L0: RETURN R0 0
-)"
-    );
-}
-
 TEST_CASE("ExportLocalBytecode")
 {
     ScopedFastFlag sffs[] = {{FFlag::LuauExportValueSyntax, true}, {FFlag::LuauOptimizeExportTable, true}};
@@ -14386,7 +14245,7 @@ TEST_CASE("LBCConstantRegressionTest")
     CHECK_EQ(LBC_CONSTANT_CLOSURE, 6);
     CHECK_EQ(LBC_CONSTANT_VECTOR, 7);
     CHECK_EQ(LBC_CONSTANT_TABLE_WITH_CONSTANTS, 8);
-    CHECK_EQ(LBC_CONSTANT_INTEGER, 9);
+    CHECK_EQ(LBC_CONSTANT_INTEGER_DEPRECATED, 9);
     CHECK_EQ(LBC_CONSTANT_CLASS_SHAPE, 10);
     CHECK_EQ(LBC_CONSTANT_VECTORD, 11);
 

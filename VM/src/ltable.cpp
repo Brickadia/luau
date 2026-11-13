@@ -112,34 +112,6 @@ static LuaNode* hashnum(const LuaTable* t, double n)
     return hashpow2(t, h2);
 }
 
-static LuaNode* hashint(const LuaTable* t, int64_t n)
-{
-    static_assert(sizeof(n) == sizeof(unsigned int) * 2, "expected a 8-byte integer");
-    unsigned int i[2];
-    memcpy(i, &n, sizeof(i));
-
-    uint32_t h1 = i[0];
-    uint32_t h2 = i[1];
-
-    // finalizer from MurmurHash64B
-    const uint32_t m = 0x5bd1e995;
-
-    if (!ALT_HASH_FUNCTION)
-    {
-        h1 ^= h2 >> 18;
-        h1 *= m;
-        h2 ^= h1 >> 22;
-        h2 *= m;
-        h1 ^= h2 >> 17;
-        h1 *= m;
-        h2 ^= h1 >> 19;
-        h2 *= m;
-    }
-
-    // ... truncated to 32-bit output (normally hash is equal to (uint64_t(h1) << 32) | h2, but we only really need the lower 32-bit half)
-    return hashpow2(t, h2);
-}
-
 LUAU_MAYBE_UNUSED static LuaNode* hashvec(const LuaTable* t, const float* v)
 {
     unsigned int i[LUA_VECTOR_SIZE];
@@ -210,8 +182,6 @@ static LuaNode* mainposition(const LuaTable* t, const TValue* key)
     {
     case LUA_TNUMBER:
         return hashnum(t, nvalue(key));
-    case LUA_TINTEGER:
-        return hashint(t, lvalue(key));
     case LUA_TVECTOR:
         return hashvec(t, vvalue(key));
     case LUA_TSTRING:
@@ -250,12 +220,6 @@ LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TNUMBER>(const LuaTable* t, dou
 }
 
 template<>
-LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TINTEGER>(const LuaTable* t, int64_t key)
-{
-    return hashint(t, key);
-}
-
-template<>
 LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TVECTOR>(const LuaTable* t, const LUA_VECTOR_TYPE* key)
 {
     return hashvec(t, key);
@@ -288,12 +252,6 @@ template<>
 LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TNUMBER>(const TKey* t1, double key)
 {
     return luai_numeq(nvalue(t1), key);
-}
-
-template<>
-LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TINTEGER>(const TKey* t1, int64_t key)
-{
-    return luai_inteq(lvalue(t1), key);
 }
 
 template<>
@@ -342,12 +300,6 @@ template<typename Obj>
 LUAU_FORCEINLINE int rawequalvalue(const Obj* lhs, double rhs)
 {
     return luai_numeq(nvalue(lhs), rhs);
-}
-
-template<typename Obj>
-LUAU_FORCEINLINE int rawequalvalue(const Obj* lhs, int64_t rhs)
-{
-    return luai_inteq(lvalue(lhs), rhs);
 }
 
 struct LightUserdataVal
@@ -523,9 +475,6 @@ int luaH_rawfind(LuaTable* t, int startpos, StkId value)
         break;
     case LUA_TNUMBER:
         index = rawfindarray(t, startpos, nvalue(value), LUA_TNUMBER);
-        break;
-    case LUA_TINTEGER:
-        index = rawfindarray(t, startpos, lvalue(value), LUA_TINTEGER);
         break;
     case LUA_TVECTOR:
         index = rawfindarray(t, startpos, (const LUA_VECTOR_TYPE*)vvalue(value), LUA_TVECTOR);
@@ -1160,8 +1109,6 @@ const TValue* luaH_get(LuaTable* t, const TValue* key)
 
             return chainsearchtagged<LUA_TNUMBER>(t, nvalue(key), LUA_TNUMBER);
         }
-        case LUA_TINTEGER:
-            return chainsearchtagged<LUA_TINTEGER>(t, lvalue(key), LUA_TINTEGER);
         case LUA_TVECTOR:
             return chainsearchtagged<LUA_TVECTOR>(t, (const LUA_VECTOR_TYPE*)vvalue(key), LUA_TVECTOR);
         case LUA_TSTRING:
@@ -1190,8 +1137,6 @@ const TValue* luaH_get(LuaTable* t, const TValue* key)
 
             return chainsearchtagged_DEPRECATED<LUA_TNUMBER>(t, nvalue(key), LUA_TNUMBER);
         }
-        case LUA_TINTEGER:
-            return chainsearchtagged_DEPRECATED<LUA_TINTEGER>(t, lvalue(key), LUA_TINTEGER);
         case LUA_TVECTOR:
             return chainsearchtagged_DEPRECATED<LUA_TVECTOR>(t, (const LUA_VECTOR_TYPE*)vvalue(key), LUA_TVECTOR);
         case LUA_TSTRING:
@@ -1237,8 +1182,6 @@ TValue* luaH_newkey(lua_State* L, LuaTable* t, const TValue* key)
 
         return newkeytagged<LUA_TNUMBER, false>(L, t, key, n, -1);
     }
-    case LUA_TINTEGER:
-        return newkeytagged<LUA_TINTEGER, false>(L, t, key, lvalue(key), -1);
     case LUA_TVECTOR:
         if (luai_vecisnan(vvalue(key)))
             luaG_runerror(L, "table index contains NaN");

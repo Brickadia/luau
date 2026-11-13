@@ -12,7 +12,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-LUAU_FASTFLAG(LuauIntegerType2)
 LUAU_FASTFLAG(DebugLuauUserDefinedClasses)
 LUAU_FASTFLAGVARIABLE(LuauEmitCallFeedback)
 
@@ -332,18 +331,6 @@ int32_t BytecodeBuilder::addConstantNumber(double value)
 
     ConstantKey k = {Constant::Type_Number};
     static_assert(sizeof(k.value) == sizeof(value), "Expecting double to be 64-bit");
-    memcpy(&k.value, &value, sizeof(value));
-
-    return addConstant(k, c);
-}
-
-int32_t BytecodeBuilder::addConstantInteger(int64_t value)
-{
-    Constant c = {Constant::Type_Integer};
-    c.valueInteger64 = value;
-
-    ConstantKey k = {Constant::Type_Integer};
-    static_assert(sizeof(k.value) == sizeof(value), "Expecting integer to be 64-bit");
     memcpy(&k.value, &value, sizeof(value));
 
     return addConstant(k, c);
@@ -880,20 +867,6 @@ void BytecodeBuilder::writeFunction(std::string& ss, uint32_t id, uint8_t flags,
         case Constant::Type_Number:
             writeByte(ss, LBC_CONSTANT_NUMBER);
             writeDouble(ss, c.valueNumber);
-            break;
-
-        case Constant::Type_Integer:
-            writeByte(ss, LBC_CONSTANT_INTEGER);
-            if (c.valueInteger64 < 0)
-            {
-                writeByte(ss, 1);
-                writeVarInt(ss, ~(uint64_t)c.valueInteger64 + 1);
-            }
-            else
-            {
-                writeByte(ss, 0);
-                writeVarInt(ss, c.valueInteger64);
-            }
             break;
 
         case Constant::Type_Vectorf:
@@ -2320,9 +2293,6 @@ void BytecodeBuilder::dumpConstant(std::string& result, int k, bool detailed) co
     case Constant::Type_Number:
         formatAppend(result, "%.17g", data.valueNumber);
         break;
-    case Constant::Type_Integer:
-        formatAppend(result, "%lld", (long long)(int64_t)data.valueInteger64);
-        break;
     case Constant::Type_Vectorf:
         // 3-vectors is the most common configuration, so truncate to three components if possible
         if (data.valueVectorf[3] == 0.0f)
@@ -3030,8 +3000,6 @@ static const char* getBaseTypeString(uint8_t type)
         return "boolean";
     case LBC_TYPE_NUMBER:
         return "number";
-    case LBC_TYPE_INTEGER:
-        return "integer";
     case LBC_TYPE_STRING:
         return "string";
     case LBC_TYPE_TABLE:

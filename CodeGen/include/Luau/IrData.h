@@ -67,10 +67,6 @@ enum class IrCmd : uint8_t
     // A: Rn
     LOAD_INT,
 
-    // Load an int64 from TValue
-    // A: Rn
-    LOAD_INT64,
-
     // Load a float field from vector (use FLOAT_TO_NUM to convert to double)
     // A: Rn or Kn
     // B: int (offset from the start of TValue)
@@ -131,11 +127,6 @@ enum class IrCmd : uint8_t
     // A: Rn
     // B: int
     STORE_INT,
-
-    // Store an int64 into TValue
-    // A: Rn
-    // B: int64
-    STORE_INT64,
 
     // Store a vector into TValue
     // When optional 'E' tag is present, it is written out to the TValue as well

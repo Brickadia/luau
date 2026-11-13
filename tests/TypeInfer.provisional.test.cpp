@@ -21,7 +21,6 @@ LUAU_FASTINT(LuauTarjanChildLimit)
 LUAU_FASTINT(LuauTypeInferIterationLimit)
 LUAU_FASTINT(LuauTypeInferRecursionLimit)
 LUAU_FASTINT(LuauTypeInferTypePackLoopLimit)
-LUAU_FASTFLAG(LuauIntegerType2)
 LUAU_FASTFLAG(LuauImproveUniqueTableWidthSubtyping)
 LUAU_FASTFLAG(LuauDecomposeIntersectionOfFreeType)
 
@@ -69,29 +68,13 @@ TEST_CASE_FIXTURE(Fixture, "typeguard_inference_incomplete")
             if type(a) == 'boolean' then
                 local a1:{fn:()->(unknown,...unknown)}&boolean=a
             elseif a.fn() then
-                local a2:{fn:()->(unknown,...unknown)}&(userdata|function|nil|number|integer|string|thread|buffer|table)=a
-            end
-        end
-    )";
-
-    const std::string expectedWithNewSolver_NOINTEGER =
-        R"(
-        function f(a:{fn:()->(unknown,...unknown)}): ()
-            if type(a) == 'boolean' then
-                local a1:{fn:()->(unknown,...unknown)}&boolean=a
-            elseif a.fn() then
                 local a2:{fn:()->(unknown,...unknown)}&(userdata|function|nil|number|string|thread|buffer|table)=a
             end
         end
     )";
 
     if (!FFlag::DebugLuauForceOldSolver)
-    {
-        if (FFlag::LuauIntegerType2)
-            CHECK_EQ(expectedWithNewSolver, decorateWithTypes(code));
-        else
-            CHECK_EQ(expectedWithNewSolver_NOINTEGER, decorateWithTypes(code));
-    }
+        CHECK_EQ(expectedWithNewSolver, decorateWithTypes(code));
     else
         CHECK_EQ(expected, decorateWithTypes(code));
 }

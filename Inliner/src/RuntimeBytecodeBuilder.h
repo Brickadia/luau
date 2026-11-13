@@ -54,8 +54,6 @@ struct RuntimeBytecodeBuilder : public BytecodeBuilder
             return LUA_TBOOLEAN;
         case Constant::Type_Number:
             return LUA_TNUMBER;
-        case Constant::Type_Integer:
-            return LUA_TINTEGER;
         case Constant::Type_Vectorf:
         case Constant::Type_Vectord:
             return LUA_TVECTOR;
@@ -116,9 +114,6 @@ struct RuntimeBytecodeBuilder : public BytecodeBuilder
             break;
         case LUA_TNUMBER:
             formatAppend(result, "%.17g", nvalue(c));
-            break;
-        case LUA_TINTEGER:
-            formatAppend(result, "%lld", (long long)(int64_t)lvalue(c));
             break;
         case LUA_TVECTOR:
         {

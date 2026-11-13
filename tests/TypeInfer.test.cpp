@@ -33,6 +33,29 @@ using namespace Luau;
 
 TEST_SUITE_BEGIN("TypeInfer");
 
+TEST_CASE("retired_integer_type_guards")
+{
+    for (bool oldSolver : {false, true})
+    {
+        ScopedFastFlag solver{FFlag::DebugLuauForceOldSolver, oldSolver};
+        for (const char* guard : {"type", "typeof"})
+        {
+            INFO(oldSolver);
+            INFO(guard);
+            Fixture fixture;
+            std::string source = "local function f(value: unknown)\nif " + std::string(guard) + R"((value) == "integer" then
+    local inside: string = value
+end
+local outside: string = value
+end
+)";
+            CheckResult result = fixture.check(Mode::Strict, source);
+            CHECK(!result.errors.empty());
+            CHECK_NOTHROW(fixture.getErrors(result));
+        }
+    }
+}
+
 TEST_CASE_FIXTURE(Fixture, "tc_hello_world")
 {
     CheckResult result = check("local a = 7");

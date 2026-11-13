@@ -41,7 +41,6 @@ LUAU_FASTFLAG(DebugLuauLogSolverToJson)
 LUAU_FASTFLAG(DebugLuauMagicTypes)
 LUAU_FASTINTVARIABLE(LuauPrimitiveInferenceInTableLimit, 500)
 LUAU_FASTFLAGVARIABLE(LuauDisallowRedefiningBuiltinTypes)
-LUAU_FASTFLAG(LuauIntegerType2)
 LUAU_FASTFLAG(DebugLuauUserDefinedClasses)
 LUAU_FASTFLAGVARIABLE(DebugLuauCFG)
 LUAU_FASTFLAG(LuauCyclicRequireTypeInference)
@@ -3411,8 +3410,6 @@ Inference ConstraintGenerator::check(const ScopePtr& scope, AstExpr* expr, std::
         result = check(scope, stringExpr, expectedType, forceSingleton);
     else if (expr->is<AstExprConstantNumber>())
         result = Inference{builtinTypes->numberType};
-    else if (expr->is<AstExprConstantInteger>())
-        result = Inference{builtinTypes->integerType};
     else if (auto boolExpr = expr->as<AstExprConstantBool>())
         result = check(scope, boolExpr, expectedType, forceSingleton);
     else if (expr->is<AstExprConstantNil>())
@@ -3765,11 +3762,6 @@ Inference ConstraintGenerator::check(const ScopePtr& scope, AstExprUnary* unary)
     }
     case AstExprUnary::Op::Minus:
     {
-        // compileExprUnary folds `-1i` into one negative constant, so a negated integer literal is a value rather than
-        // an operation. A non-literal integer still reaches the runtime, which has no __unm, so it keeps the check.
-        if (FFlag::LuauIntegerType2 && unary->expr->is<AstExprConstantInteger>())
-            return Inference{builtinTypes->integerType, std::move(refinement)};
-
         TypeId resultType = createTypeFunctionInstance(builtinTypes->typeFunctions->unmFunc, {operandType}, {}, scope, unary->location);
         return Inference{resultType, std::move(refinement)};
     }
@@ -4061,8 +4053,6 @@ std::tuple<TypeId, TypeId, RefinementId> ConstraintGenerator::checkBinary(
             discriminantTy = builtinTypes->stringType;
         else if (typeguard->type == "number")
             discriminantTy = builtinTypes->numberType;
-        else if (typeguard->type == "integer")
-            discriminantTy = builtinTypes->integerType;
         else if (typeguard->type == "boolean")
             discriminantTy = builtinTypes->booleanType;
         else if (typeguard->type == "thread")

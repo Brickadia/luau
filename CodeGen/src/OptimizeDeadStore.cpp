@@ -29,7 +29,6 @@ static bool isUnsafeToSink(IrCmd cmd)
     case IrCmd::LOAD_POINTER:
     case IrCmd::LOAD_DOUBLE:
     case IrCmd::LOAD_INT:
-    case IrCmd::LOAD_INT64:
     case IrCmd::LOAD_FLOAT:
     case IrCmd::LOAD_TVALUE:
 
@@ -123,10 +122,6 @@ struct RemoveDeadStoreState
         case IrCmd::STORE_INT:
             value = OP_B(storeInst);
             kind = IrValueKind::Int;
-            break;
-        case IrCmd::STORE_INT64:
-            value = OP_B(storeInst);
-            kind = IrValueKind::Int64;
             break;
         case IrCmd::STORE_POINTER:
             value = OP_B(storeInst);
@@ -1051,7 +1046,6 @@ static void markDeadStoresInInst(RemoveDeadStoreState& state, IrBuilder& build, 
         }
         break;
     case IrCmd::STORE_DOUBLE:
-    case IrCmd::STORE_INT64:
     case IrCmd::STORE_INT:
         if (OP_A(inst).kind == IrOpKind::VmReg)
         {
@@ -1609,7 +1603,7 @@ static void generateVmExitBlocks(IrBuilder& build, const std::vector<uint32_t>& 
                 for (auto& record : regStore.stores)
                 {
                     IrCmd cmd = record.backup.cmd;
-                    bool partialStore = cmd == IrCmd::STORE_DOUBLE || cmd == IrCmd::STORE_INT || cmd == IrCmd::STORE_POINTER || cmd == IrCmd::STORE_INT64;
+                    bool partialStore = cmd == IrCmd::STORE_DOUBLE || cmd == IrCmd::STORE_INT || cmd == IrCmd::STORE_POINTER;
 
                     // If it's only a partial store and could be used for a spill, restore the tag from the constant
                     if (partialStore && function.findStoreLocationHint(record.instIdx))
