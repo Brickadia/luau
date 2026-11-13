@@ -13,7 +13,6 @@ namespace Luau
 class AstNameTable;
 struct ParseResult;
 class BytecodeBuilder;
-class BytecodeEncoder;
 
 using CompileConstant = void*;
 
@@ -102,8 +101,7 @@ void compileOrThrow(BytecodeBuilder& bytecode, const std::string& source, const 
 std::string compile(
     const std::string& source,
     const CompileOptions& options = {},
-    const ParseOptions& parseOptions = {},
-    BytecodeEncoder* encoder = nullptr
+    const ParseOptions& parseOptions = {}
 );
 
 void setCompileConstantNil(CompileConstant* constant);

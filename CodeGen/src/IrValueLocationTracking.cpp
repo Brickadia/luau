@@ -135,6 +135,10 @@ void IrValueLocationTracking::beforeInstLowering(IrInst& inst)
         // Even if result count is limited, all registers starting from function (ra) might be modified
         invalidateRestoreVmRegs(vmRegOp(OP_A(inst)), -1);
         break;
+    case IrCmd::INVOKE_NAMECALL:
+        // Even if result count is limited, all registers starting from function (ra) might be modified
+        invalidateRestoreVmRegs(vmRegOp(OP_B(inst)), -1);
+        break;
     case IrCmd::DO_ARITH:
     case IrCmd::DO_LEN:
     case IrCmd::CONSTRUCT:

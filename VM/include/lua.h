@@ -256,6 +256,18 @@ LUA_API int lua_setfenv(lua_State* L, int idx);
 ** `load' and `call' functions (load and run Luau bytecode)
 */
 LUA_API int luau_load(lua_State* L, const char* chunkname, const char* data, size_t size, int env);
+// Same result as luau_load, but every function other than the main one is built on its first access, so functions that never run save
+// memory. Takes ownership of owner: data must stay valid and unchanged until release(owner) is called, when no unbuilt function of the
+// chunk is left (possibly before luau_loadlazy returns). release may be NULL.
+LUA_API int luau_loadlazy(
+    lua_State* L,
+    const char* chunkname,
+    const char* data,
+    size_t size,
+    int env,
+    void* owner,
+    void (*release)(void* owner)
+);
 LUA_API void lua_call(lua_State* L, int nargs, int nresults);
 LUA_API int lua_pcall(lua_State* L, int nargs, int nresults, int errfunc);
 LUA_API int lua_cpcall(lua_State* L, lua_CFunction func, void* ud);

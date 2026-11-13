@@ -11,6 +11,7 @@
 
 LUAU_FASTFLAG(LuauCodegenInteger3)
 LUAU_FASTFLAGVARIABLE(LuauCodegenBufferInteger)
+LUAU_FASTFLAGVARIABLE(LuauCodegenMultiLaneDot)
 
 // TODO: when nresults is less than our actual result count, we can skip computing/writing unused results
 
@@ -1015,6 +1016,97 @@ static BuiltinImplResult translateBuiltinBufferWrite(
     return {BuiltinImplType::Full, 0};
 }
 
+// buffer.readvectorf32x{2,3}: read 'count' contiguous f32 components and construct a vector (missing components are zeroed).
+static BuiltinImplResult translateBuiltinBufferReadVector(
+    IrBuilder& build,
+    int nparams,
+    int ra,
+    int arg,
+    IrOp args,
+    IrOp arg3,
+    int nresults,
+    int pcpos,
+    int count
+)
+{
+    if (nparams < 2 || nresults > 1)
+        return {BuiltinImplType::None, -1};
+
+    IrOp buf, intIndex;
+    translateBufferArgsAndCheckBounds(build, nparams, arg, args, arg3, count * 4, pcpos, buf, intIndex);
+
+    if constexpr (LUA_VECTOR_DOUBLE == 1)
+    {
+        // vector components are stored as doubles; there is no single wide move, so read each f32 lane and widen
+        IrOp xd = build.inst(IrCmd::FLOAT_TO_NUM, build.inst(IrCmd::BUFFER_READF32, buf, intIndex, build.constTag(LUA_TBUFFER)));
+        IrOp yd = build.inst(
+            IrCmd::FLOAT_TO_NUM, build.inst(IrCmd::BUFFER_READF32, buf, build.inst(IrCmd::ADD_INT, intIndex, build.constInt(4)), build.constTag(LUA_TBUFFER))
+        );
+        IrOp zd = count >= 3 ? build.inst(
+                                   IrCmd::FLOAT_TO_NUM,
+                                   build.inst(IrCmd::BUFFER_READF32, buf, build.inst(IrCmd::ADD_INT, intIndex, build.constInt(8)), build.constTag(LUA_TBUFFER))
+                               )
+                             : build.constDouble(0.0);
+        build.inst(IrCmd::STORE_POINTER, build.vmReg(ra), build.inst(IrCmd::NEW_VECTOR, xd, yd, zd));
+        build.inst(IrCmd::STORE_TAG, build.vmReg(ra), build.constTag(LUA_TVECTOR));
+    }
+    else
+    {
+        IrOp vec = build.inst(IrCmd::BUFFER_READVECTOR, buf, intIndex, build.constTag(LUA_TBUFFER), build.constInt(count));
+        build.inst(IrCmd::STORE_TVALUE, build.vmReg(ra), build.inst(IrCmd::TAG_VECTOR, vec));
+    }
+
+    return {BuiltinImplType::Full, 1};
+}
+
+// buffer.writevectorf32x{2,3}: write 'count' contiguous f32 components from a vector argument.
+static BuiltinImplResult translateBuiltinBufferWriteVector(
+    IrBuilder& build,
+    int nparams,
+    int ra,
+    int arg,
+    IrOp args,
+    IrOp arg3,
+    int nresults,
+    int pcpos,
+    int count
+)
+{
+    if (nparams < 3 || nresults > 0 || arg3.kind == IrOpKind::Constant)
+        return {BuiltinImplType::None, -1};
+
+    build.loadAndCheckTag(build.vmReg(arg), LUA_TBUFFER, build.vmExit(pcpos));
+    builtinCheckDouble(build, args, pcpos);
+    build.loadAndCheckTag(arg3, LUA_TVECTOR, build.vmExit(pcpos));
+
+    IrOp buf = build.inst(IrCmd::LOAD_POINTER, build.vmReg(arg));
+
+    IrOp numIndex = builtinLoadDouble(build, args);
+    IrOp intIndex = build.inst(IrCmd::NUM_TO_INT, numIndex);
+
+    build.inst(IrCmd::CHECK_BUFFER_LEN, buf, intIndex, build.constInt(0), build.constInt(count * 4), build.undef(), build.vmExit(pcpos));
+
+    if constexpr (LUA_VECTOR_DOUBLE == 1)
+    {
+        // vector components are stored as doubles; narrow each to f32 and write the lanes individually
+        IrOp vptr = build.inst(IrCmd::LOAD_POINTER, arg3);
+        for (int i = 0; i < count; i++)
+        {
+            IrOp component =
+                build.inst(IrCmd::NUM_TO_FLOAT, build.inst(IrCmd::BUFFER_READF64, vptr, build.constInt(i * 8), build.constTag(LUA_TVECTOR)));
+            IrOp offset = i == 0 ? intIndex : build.inst(IrCmd::ADD_INT, intIndex, build.constInt(i * 4));
+            build.inst(IrCmd::BUFFER_WRITEF32, buf, offset, component, build.constTag(LUA_TBUFFER));
+        }
+    }
+    else
+    {
+        IrOp vec = build.inst(IrCmd::LOAD_TVALUE, arg3);
+        build.inst(IrCmd::BUFFER_WRITEVECTOR, buf, intIndex, vec, build.constTag(LUA_TBUFFER), build.constInt(count));
+    }
+
+    return {BuiltinImplType::Full, 0};
+}
+
 static BuiltinImplResult translateBuiltinVectorMagnitude(
     IrBuilder& build,
     int nparams,
@@ -1054,7 +1146,7 @@ static BuiltinImplResult translateBuiltinVectorMagnitude(
     {
         IrOp a = build.inst(IrCmd::LOAD_TVALUE, arg1, build.constInt(0));
 
-        IrOp sum = build.inst(IrCmd::DOT_VEC, a, a);
+        IrOp sum = FFlag::LuauCodegenMultiLaneDot ? build.inst(IrCmd::DOT_VEC, a, a, build.constInt(3)) : build.inst(IrCmd::DOT_VEC, a, a);
         IrOp mag = build.inst(IrCmd::SQRT_FLOAT, sum);
 
         mag = build.inst(IrCmd::FLOAT_TO_NUM, mag);
@@ -1109,7 +1201,7 @@ static BuiltinImplResult translateBuiltinVectorNormalize(
     else
     {
         IrOp a = build.inst(IrCmd::LOAD_TVALUE, arg1, build.constInt(0));
-        IrOp sum = build.inst(IrCmd::DOT_VEC, a, a);
+        IrOp sum = FFlag::LuauCodegenMultiLaneDot ? build.inst(IrCmd::DOT_VEC, a, a, build.constInt(3)) : build.inst(IrCmd::DOT_VEC, a, a);
 
         IrOp mag = build.inst(IrCmd::SQRT_FLOAT, sum);
         IrOp inv = build.inst(IrCmd::DIV_FLOAT, build.constDouble(1.0f), mag);
@@ -1230,7 +1322,7 @@ static BuiltinImplResult translateBuiltinVectorDot(IrBuilder& build, int nparams
         IrOp a = build.inst(IrCmd::LOAD_TVALUE, arg1, build.constInt(0));
         IrOp b = build.inst(IrCmd::LOAD_TVALUE, args, build.constInt(0));
 
-        IrOp sum = build.inst(IrCmd::DOT_VEC, a, b);
+        IrOp sum = FFlag::LuauCodegenMultiLaneDot ? build.inst(IrCmd::DOT_VEC, a, b, build.constInt(3)) : build.inst(IrCmd::DOT_VEC, a, b);
 
         sum = build.inst(IrCmd::FLOAT_TO_NUM, sum);
 
@@ -2010,6 +2102,10 @@ BuiltinImplResult translateBuiltin(
         case LBF_BUFFER_WRITEF32:
         case LBF_BUFFER_READF64:
         case LBF_BUFFER_WRITEF64:
+        case LBF_BUFFER_READVECTORF32X2:
+        case LBF_BUFFER_READVECTORF32X3:
+        case LBF_BUFFER_WRITEVECTORF32X2:
+        case LBF_BUFFER_WRITEVECTORF32X3:
         case LBF_BUFFER_READINTEGER:
             if (!isCompatibleConstant(build, args, IrConstKind::Double))
                 return {BuiltinImplType::None, -1};
@@ -2195,6 +2291,14 @@ BuiltinImplResult translateBuiltin(
         if (FFlag::LuauCodegenBufferInteger)
             return translateBuiltinBufferWrite(build, nparams, ra, arg, args, arg3, nresults, pcpos, IrCmd::BUFFER_WRITEI64, 8, IrCmd::NOP, true);
         return {BuiltinImplType::None, -1};
+    case LBF_BUFFER_READVECTORF32X2:
+        return translateBuiltinBufferReadVector(build, nparams, ra, arg, args, arg3, nresults, pcpos, 2);
+    case LBF_BUFFER_READVECTORF32X3:
+        return translateBuiltinBufferReadVector(build, nparams, ra, arg, args, arg3, nresults, pcpos, 3);
+    case LBF_BUFFER_WRITEVECTORF32X2:
+        return translateBuiltinBufferWriteVector(build, nparams, ra, arg, args, arg3, nresults, pcpos, 2);
+    case LBF_BUFFER_WRITEVECTORF32X3:
+        return translateBuiltinBufferWriteVector(build, nparams, ra, arg, args, arg3, nresults, pcpos, 3);
     case LBF_VECTOR_MAGNITUDE:
         return translateBuiltinVectorMagnitude(build, nparams, ra, arg, args, arg3, nresults, pcpos);
     case LBF_VECTOR_NORMALIZE:

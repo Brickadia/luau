@@ -12,13 +12,15 @@
 
 #include <limits.h>
 
+LUAU_FASTFLAG(LuauCodegenForwardSplitStore)
 LUAU_FASTFLAG(DebugLuauAbortingChecks)
 LUAU_FASTFLAG(LuauCodegenInteger3)
 LUAU_FASTFLAG(LuauIntegerType2)
 LUAU_FASTFLAG(LuauIntegerLibrary)
-LUAU_FASTFLAG(LuauCodegenPropagateFallbackTags)
 LUAU_FASTFLAG(LuauCodegenCmpAnySideEffecting)
+LUAU_FASTFLAG(LuauCodegenMultiLaneDot)
 LUAU_FASTFLAG(LuauCodegenX64ConflictCheck)
+LUAU_FASTFLAG(LuauCodegenExitSyncExpectedTag)
 
 using namespace Luau::CodeGen;
 
@@ -4080,8 +4082,6 @@ bb_3:
 
 TEST_CASE_FIXTURE(IrBuilderFixture, "TagsAreJoinedFromFallbackPredecessor")
 {
-    ScopedFastFlag luauCodegenPropagateFallbackTags{FFlag::LuauCodegenPropagateFallbackTags, true};
-
     IrOp entry = build.block(IrBlockKind::Internal);
     IrOp fallback = build.fallbackBlock(0u);
     IrOp exit = build.block(IrBlockKind::Internal);
@@ -4135,8 +4135,6 @@ bb_2:
 
 TEST_CASE_FIXTURE(IrBuilderFixture, "TagsEstablishedBeforeFallbackBranchPropagateThroughMerge")
 {
-    ScopedFastFlag luauCodegenPropagateFallbackTags{FFlag::LuauCodegenPropagateFallbackTags, true};
-
     IrOp entry = build.block(IrBlockKind::Internal);
     IrOp fallback = build.fallbackBlock(0u);
     IrOp merge = build.block(IrBlockKind::Internal);
@@ -4197,8 +4195,6 @@ bb_2:
 
 TEST_CASE_FIXTURE(IrBuilderFixture, "FallbackClobberDoesNotPropagateOverwrittenTag")
 {
-    ScopedFastFlag luauCodegenPropagateFallbackTags{FFlag::LuauCodegenPropagateFallbackTags, true};
-
     IrOp entry = build.block(IrBlockKind::Internal);
     IrOp fallback = build.fallbackBlock(0u);
     IrOp merge = build.block(IrBlockKind::Internal);
@@ -4251,8 +4247,6 @@ bb_2:
 
 TEST_CASE_FIXTURE(IrBuilderFixture, "FallbackMultipleBranchPointsFromSameBlockIntersect")
 {
-    ScopedFastFlag luauCodegenPropagateFallbackTags{FFlag::LuauCodegenPropagateFallbackTags, true};
-
     IrOp entry = build.block(IrBlockKind::Internal);
     IrOp fallback = build.fallbackBlock(0u);
     IrOp merge = build.block(IrBlockKind::Internal);
@@ -4315,8 +4309,6 @@ bb_2:
 
 TEST_CASE_FIXTURE(IrBuilderFixture, "FallbackReachedByFoldedUnconditionalJump")
 {
-    ScopedFastFlag luauCodegenPropagateFallbackTags{FFlag::LuauCodegenPropagateFallbackTags, true};
-
     IrOp entry = build.block(IrBlockKind::Internal);
     IrOp fallback = build.fallbackBlock(0u);
     IrOp merge = build.block(IrBlockKind::Internal);
@@ -4435,6 +4427,82 @@ bb_3:
 bb_4:
 ; predecessors: bb_2
 ; in regs: R0
+   RETURN R0, 1i
+
+)");
+}
+
+TEST_CASE_FIXTURE(IrBuilderFixture, "ForwardSplitStore1")
+{
+    ScopedFastFlag luauCodegenForwardSplitStore{FFlag::LuauCodegenForwardSplitStore, true};
+
+    build.beginBlock(build.block(IrBlockKind::Internal));
+
+    IrOp number = build.inst(IrCmd::LOAD_DOUBLE, build.vmReg(0));
+    build.inst(IrCmd::STORE_SPLIT_TVALUE, build.vmReg(1), build.constTag(tnumber), number);
+    build.inst(IrCmd::STORE_DOUBLE, build.vmReg(2), build.inst(IrCmd::LOAD_DOUBLE, build.vmReg(1)));
+
+    build.inst(IrCmd::RETURN, build.constUint(0));
+
+    updateUseCounts(build.function);
+    constPropInBlockChains(build);
+
+    CHECK("\n" + toString(build.function, IncludeUseInfo::No) == R"(
+bb_0:
+   %0 = LOAD_DOUBLE R0
+   STORE_SPLIT_TVALUE R1, tnumber, %0
+   STORE_DOUBLE R2, %0
+   RETURN 0u
+
+)");
+}
+
+TEST_CASE_FIXTURE(IrBuilderFixture, "ForwardSplitStore2")
+{
+    ScopedFastFlag luauCodegenForwardSplitStore{FFlag::LuauCodegenForwardSplitStore, true};
+
+    IrOp entry = build.block(IrBlockKind::Internal);
+    IrOp fallback = build.fallbackBlock(0);
+    IrOp fallback2 = build.fallbackBlock(1);
+
+    build.beginBlock(entry);
+
+    IrOp table = build.inst(IrCmd::LOAD_POINTER, build.vmReg(0));
+    IrOp node = build.inst(IrCmd::GET_SLOT_NODE_ADDR, table, build.constUint(0), build.vmConst(1));
+    build.inst(IrCmd::CHECK_SLOT_MATCH, node, build.vmConst(1), fallback);
+    build.inst(IrCmd::STORE_TVALUE, build.vmReg(2), build.inst(IrCmd::LOAD_TVALUE, node, build.constInt(0)));
+    build.inst(IrCmd::STORE_SPLIT_TVALUE, build.vmReg(1), build.constTag(ttable), table);
+
+    // Second load through the same table stored with a split instruction can disappear
+    IrOp copy = build.inst(IrCmd::LOAD_POINTER, build.vmReg(1));
+    IrOp otherNode = build.inst(IrCmd::GET_SLOT_NODE_ADDR, copy, build.constUint(2), build.vmConst(1));
+    build.inst(IrCmd::CHECK_SLOT_MATCH, otherNode, build.vmConst(1), fallback2);
+    build.inst(IrCmd::STORE_TVALUE, build.vmReg(3), build.inst(IrCmd::LOAD_TVALUE, otherNode, build.constInt(0)));
+
+    build.inst(IrCmd::RETURN, build.vmReg(2), build.constInt(2));
+
+    build.beginBlock(fallback);
+    build.inst(IrCmd::RETURN, build.vmReg(0), build.constInt(1));
+
+    // Will not be needed after the optimization
+    build.beginBlock(fallback2);
+    build.inst(IrCmd::RETURN, build.vmReg(1), build.constInt(1));
+
+    updateUseCounts(build.function);
+    constPropInBlockChains(build);
+
+    CHECK("\n" + toString(build.function, IncludeUseInfo::No) == R"(
+bb_0:
+   %0 = LOAD_POINTER R0
+   %1 = GET_SLOT_NODE_ADDR %0, 0u, K1
+   CHECK_SLOT_MATCH %1, K1, bb_fallback_1
+   %3 = LOAD_TVALUE %1, 0i
+   STORE_TVALUE R2, %3
+   STORE_SPLIT_TVALUE R1, ttable, %0
+   STORE_TVALUE R3, %3
+   RETURN R2, 2i
+
+bb_fallback_1:
    RETURN R0, 1i
 
 )");
@@ -4957,8 +5025,6 @@ bb_8:
 
 TEST_CASE_FIXTURE(IrBuilderFixture, "EntryBlockBackEdgeTagPropagation")
 {
-    ScopedFastFlag luauCodegenPropagateFallbackTags{FFlag::LuauCodegenPropagateFallbackTags, true};
-
     IrOp entry = build.block(IrBlockKind::Internal);
     IrOp target = build.block(IrBlockKind::Internal);
     IrOp fallback = build.fallbackBlock(0u);
@@ -7056,8 +7122,6 @@ bb_0:
 
 TEST_CASE_FIXTURE(IrBuilderFixture, "VersionLimitChecks")
 {
-    ScopedFastFlag luauCodegenPropagateFallbackTags{FFlag::LuauCodegenPropagateFallbackTags, true};
-
     IrOp entry = build.block(IrBlockKind::Internal);
     IrOp unrelated = build.block(IrBlockKind::Internal);
     IrOp next = build.block(IrBlockKind::Internal);
@@ -9033,6 +9097,128 @@ bb_exit_1:
    STORE_TAG R1, tnumber
    STORE_DOUBLE R1, %15
    JUMP exit(1)
+
+)");
+}
+
+TEST_CASE_FIXTURE(IrBuilderFixture, "DseVmExitSyncHintedPartialStoreTag")
+{
+    ScopedFastFlag luauCodegenExitSyncExpectedTag{FFlag::LuauCodegenExitSyncExpectedTag, true};
+
+    IrOp block = build.block(IrBlockKind::Internal);
+    build.beginBlock(block);
+
+    build.inst(IrCmd::CHECK_TAG, build.inst(IrCmd::LOAD_TAG, build.vmReg(1)), build.constTag(tnumber), build.vmExit(0));
+    build.inst(IrCmd::CHECK_TAG, build.inst(IrCmd::LOAD_TAG, build.vmReg(2)), build.constTag(tnumber), build.vmExit(0));
+
+    IrOp load = build.inst(IrCmd::LOAD_DOUBLE, build.vmReg(0));
+    IrOp add = build.inst(IrCmd::ADD_NUM, load, build.constDouble(1.0));
+
+    build.inst(IrCmd::STORE_DOUBLE, build.vmReg(1), add);
+    build.inst(IrCmd::STORE_DOUBLE, build.vmReg(2), build.constDouble(6.0));
+    build.inst(IrCmd::STORE_SPLIT_TVALUE, build.vmReg(3), build.constTag(tnumber), add);
+    build.inst(IrCmd::CHECK_SAFE_ENV, build.vmExit(1));
+
+    IrOp result = build.inst(IrCmd::UINT_TO_NUM, build.inst(IrCmd::NUM_TO_UINT, add));
+    build.inst(IrCmd::STORE_SPLIT_TVALUE, build.vmReg(0), build.constTag(tnumber), result);
+    build.inst(IrCmd::RETURN, build.vmReg(0), build.constInt(1));
+
+    updateUseCounts(build.function);
+    computeCfgInfo(build.function);
+    constPropInBlockChains(build);
+    markDeadStoresInBlockChains(build);
+
+    CHECK("\n" + toString(build.function, IncludeUseInfo::No) == R"(
+bb_0:
+; in regs: R0, R1, R2
+   %0 = LOAD_TAG R1
+   CHECK_TAG %0, tnumber, exit(0)
+   %2 = LOAD_TAG R2
+   CHECK_TAG %2, tnumber, exit(0)
+   %4 = LOAD_DOUBLE R0
+   %5 = ADD_NUM %4, 1
+   CHECK_SAFE_ENV bb_exit_1
+   ; exit sync: R3, R2, R1, {%5}
+   %10 = NUM_TO_UINT %5
+   %11 = UINT_TO_NUM %10
+   STORE_SPLIT_TVALUE R0, tnumber, %11
+   RETURN R0, 1i
+
+bb_exit_1:
+   STORE_SPLIT_TVALUE R3, tnumber, %5
+   STORE_DOUBLE R2, 6
+   STORE_TAG R1, tnumber
+   STORE_DOUBLE R1, %5
+   JUMP exit(1)
+
+)");
+}
+
+TEST_CASE_FIXTURE(IrBuilderFixture, "PackedBufferStoreForwardingAndPartialWrite")
+{
+    build.beginBlock(build.block(IrBlockKind::Internal));
+
+    IrOp pointer = build.inst(IrCmd::LOAD_POINTER, build.vmReg(0));
+    IrOp vector = build.inst(IrCmd::LOAD_TVALUE, build.vmReg(1));
+    build.inst(IrCmd::BUFFER_WRITEF32X4, pointer, build.constInt(0), vector, build.constTag(tuserdata));
+
+    IrOp forwarded = build.inst(IrCmd::BUFFER_READF32X4, pointer, build.constInt(0), build.constTag(tuserdata));
+    build.inst(IrCmd::STORE_TVALUE, build.vmReg(2), forwarded);
+    build.inst(IrCmd::BUFFER_WRITEF32, pointer, build.constInt(12), build.constDouble(99), build.constTag(tuserdata));
+
+    IrOp reloaded = build.inst(IrCmd::BUFFER_READF32X4, pointer, build.constInt(0), build.constTag(tuserdata));
+    build.inst(IrCmd::STORE_TVALUE, build.vmReg(3), reloaded);
+    build.inst(IrCmd::RETURN, build.vmReg(2), build.constInt(2));
+
+    updateUseCounts(build.function);
+    constPropInBlockChains(build);
+
+    CHECK("\n" + toString(build.function, IncludeUseInfo::No) == R"(
+bb_0:
+   %0 = LOAD_POINTER R0
+   %1 = LOAD_TVALUE R1
+   BUFFER_WRITEF32X4 %0, 0i, %1, tuserdata
+   STORE_TVALUE R2, %1
+   BUFFER_WRITEF32 %0, 12i, 99, tuserdata
+   %6 = BUFFER_READF32X4 %0, 0i, tuserdata
+   STORE_TVALUE R3, %6
+   RETURN R2, 2i
+
+)");
+}
+
+TEST_CASE_FIXTURE(IrBuilderFixture, "PackedBufferVectorLanes")
+{
+    ScopedFastFlag luauCodegenMultiLaneDot{FFlag::LuauCodegenMultiLaneDot, true};
+
+    build.beginBlock(build.block(IrBlockKind::Internal));
+
+    IrOp vector = build.inst(IrCmd::LOAD_TVALUE, build.vmReg(0));
+    IrOp tagged = build.inst(IrCmd::TAG_VECTOR, vector);
+    IrOp untagged = build.inst(IrCmd::UNTAG_VECTOR, tagged);
+    IrOp duplicate = build.inst(IrCmd::UNTAG_VECTOR, untagged);
+    IrOp three = build.inst(IrCmd::DOT_VEC, tagged, duplicate, build.constInt(3));
+    IrOp four = build.inst(IrCmd::DOT_VEC, tagged, duplicate, build.constInt(4));
+
+    build.inst(IrCmd::STORE_DOUBLE, build.vmReg(1), build.inst(IrCmd::FLOAT_TO_NUM, three));
+    build.inst(IrCmd::STORE_DOUBLE, build.vmReg(2), build.inst(IrCmd::FLOAT_TO_NUM, four));
+    build.inst(IrCmd::RETURN, build.vmReg(1), build.constInt(2));
+
+    updateUseCounts(build.function);
+    constPropInBlockChains(build);
+
+    CHECK("\n" + toString(build.function, IncludeUseInfo::No) == R"(
+bb_0:
+   %0 = LOAD_TVALUE R0
+   %1 = TAG_VECTOR %0
+   %2 = UNTAG_VECTOR %1
+   %4 = DOT_VEC %0, %2, 3i
+   %5 = DOT_VEC %1, %2, 4i
+   %6 = FLOAT_TO_NUM %4
+   STORE_DOUBLE R1, %6
+   %8 = FLOAT_TO_NUM %5
+   STORE_DOUBLE R2, %8
+   RETURN R1, 2i
 
 )");
 }

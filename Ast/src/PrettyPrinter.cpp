@@ -903,6 +903,27 @@ struct Printer
             advance(newPos);
     }
 
+    void visualize(AstStatClass::DeclModifier modifier)
+    {
+        switch (modifier)
+        {
+        case AstStatClass::DeclModifier::None:
+            break;
+        case AstStatClass::DeclModifier::Export:
+            writer.keyword("export");
+            break;
+        case AstStatClass::DeclModifier::Local:
+            writer.keyword("local");
+            break;
+        case AstStatClass::DeclModifier::Const:
+            writer.keyword("const");
+            break;
+        default:
+            LUAU_ASSERT(!"Unknown class declaration modifier");
+            break;
+        }
+    }
+
     void visualize(AstStat& program)
     {
         advance(program.location.begin);
@@ -1381,9 +1402,20 @@ struct Printer
         }
         else if (const auto& c = program.as<AstStatClass>(); c && FFlag::DebugLuauUserDefinedClasses)
         {
+            visualize(c->declModifier);
+
+            if (c->open)
+                writer.keyword("open");
+
             writer.keyword("class");
-            writer.advance(c->name->location.begin);
-            writer.identifier(c->name->name.value);
+            if (c->declModifier == AstStatClass::DeclModifier::None)
+                visualize(*c->exprName);
+            else
+            {
+                writer.advance(c->localName->location.begin);
+                writer.identifier(c->localName->name.value);
+            }
+
             if (c->super)
             {
                 writer.keyword("extends");

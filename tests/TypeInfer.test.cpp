@@ -1155,8 +1155,6 @@ end
 
 TEST_CASE_FIXTURE(Fixture, "cli_50041_committing_txnlog_in_apollo_client_error")
 {
-    DOES_NOT_PASS_WITH_EXACT_TABLES();
-
     DOES_NOT_PASS_NEW_SOLVER_GUARD();
 
     CheckResult result = check(R"(
@@ -2514,8 +2512,6 @@ TEST_CASE_FIXTURE(Fixture, "if_then_else_bidirectional_inference")
 
 TEST_CASE_FIXTURE(Fixture, "if_then_else_two_errors")
 {
-    DOES_NOT_PASS_WITH_EXACT_TABLES();
-
     ScopedFastFlag sff{FFlag::DebugLuauForceOldSolver, false};
 
     CheckResult results = check(R"(
@@ -2818,8 +2814,6 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "iterate_over_table_with_optional_indexer_val
 
 TEST_CASE_FIXTURE(BuiltinsFixture, "iterate_over_local_table_with_optional_indexer_values")
 {
-    DOES_NOT_PASS_WITH_EXACT_TABLES();
-
     ScopedFastFlag sff{FFlag::DebugLuauForceOldSolver, false};
 
     CheckResult result = check(R"(
@@ -3045,8 +3039,6 @@ TEST_CASE_FIXTURE(Fixture, "generic_P_inference_with_optional_param_does_not_lea
 
 TEST_CASE_FIXTURE(Fixture, "generic_P_with_intersection_props_and_partial_table")
 {
-    DOES_NOT_PASS_WITH_EXACT_TABLES();
-
     DOES_NOT_PASS_OLD_SOLVER_GUARD();
 
     // When a component's props are an intersection of table types with optional
@@ -3073,8 +3065,6 @@ TEST_CASE_FIXTURE(Fixture, "generic_P_with_intersection_props_and_partial_table"
 
 TEST_CASE_FIXTURE(Fixture, "generic_P_widening_with_recursive_optional_field")
 {
-    DOES_NOT_PASS_WITH_EXACT_TABLES();
-
     DOES_NOT_PASS_OLD_SOLVER_GUARD();
 
     // When a component has a recursive optional field (like React's children),
@@ -3140,6 +3130,21 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "fuzzer_generic_binding_ice")
             n0 = if _ then _,
             _ = n0({fill=_,n33=_,},_,table.find,optional,_(_,_,n0,function,_,optional,""),)
         }
+    )"));
+}
+
+TEST_CASE_FIXTURE(BuiltinsFixture, "fuzzer_globals_in_type_functions_arent_defined")
+{
+    LUAU_REQUIRE_ERRORS(check(R"(
+        export type function t6(l0)
+        do end
+        end
+        type function t0<Y,A>(l0)
+        end
+        export type function t6()
+        function _()
+        end
+        end
     )"));
 }
 

@@ -22,14 +22,6 @@ static const uint32_t kMaxClosureCount = 1 << 15;
 
 static const int kMaxJumpDistance = 1 << 23;
 
-class BytecodeEncoder
-{
-public:
-    virtual ~BytecodeEncoder() {}
-
-    virtual void encode(uint32_t* data, size_t count) = 0;
-};
-
 class BytecodeBuilder
 {
 public:
@@ -70,7 +62,7 @@ public:
         std::vector<int32_t> methodNames;
     };
 
-    BytecodeBuilder(BytecodeEncoder* encoder = 0);
+    BytecodeBuilder();
     virtual ~BytecodeBuilder() = default;
 
     uint32_t beginFunction(uint8_t numparams, bool isvararg = false);
@@ -89,8 +81,6 @@ public:
     int32_t addConstantTable(const TableShape& shape);
     int32_t addConstantClosure(uint32_t fid);
 
-    uint32_t addFbSlot_DEPRECATED(LuauFeedbackType t);
-    uint32_t addFbSlot_DEPRECATED(LuauFeedbackType t, uint32_t pc);
     uint32_t addCallTargetSlot(uint32_t pc);
     uint32_t addConstructSlot(uint32_t shapecid);
 
@@ -361,7 +351,6 @@ protected:
     };
 
     std::vector<FeedbackSlot> fbSlots;
-    std::vector<uint32_t> fbSlots_DEPRECATED;
 
     bool hasLongJumps = false;
 
@@ -385,7 +374,6 @@ protected:
     std::vector<std::pair<uint32_t, uint32_t>> debugRemarks;
     std::string debugRemarkBuffer;
 
-    BytecodeEncoder* encoder = nullptr;
     std::string bytecode;
 
     uint32_t dumpFlags = 0;

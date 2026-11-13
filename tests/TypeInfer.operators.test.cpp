@@ -1279,8 +1279,6 @@ TEST_CASE_FIXTURE(Fixture, "infer_type_for_generic_concat")
 
 TEST_CASE_FIXTURE(BuiltinsFixture, "equality_operations_succeed_if_any_union_branch_succeeds")
 {
-    DOES_NOT_PASS_WITH_EXACT_TABLES();
-
     CheckResult result = check(R"(
         local mm = {}
         type Foo = typeof(setmetatable({}, mm))
@@ -1705,8 +1703,6 @@ end
 
 TEST_CASE_FIXTURE(BuiltinsFixture, "overload_concat")
 {
-    DOES_NOT_PASS_WITH_EXACT_TABLES();
-
     CheckResult result = check(R"(
         type classData = {
             b:buffer;

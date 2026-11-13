@@ -9,7 +9,9 @@
 
 LUAU_FASTFLAGVARIABLE(LuauIntegerFastcalls)
 LUAU_FASTFLAGVARIABLE(LuauIntegerBufferFastcalls)
+LUAU_FASTFLAGVARIABLE(DebugLuauBufferVectorFastcalls)
 LUAU_FASTFLAGVARIABLE(LuauCompileTableBuiltinsCreateClear)
+
 
 namespace Luau
 {
@@ -264,6 +266,21 @@ static int getBuiltinFunctionId(const Builtin& builtin, const CompileOptions& op
             return LBF_BUFFER_READINTEGER;
         if (FFlag::LuauIntegerFastcalls && FFlag::LuauIntegerBufferFastcalls && builtin.method == "writeinteger")
             return LBF_BUFFER_WRITEINTEGER;
+        if (FFlag::DebugLuauBufferVectorFastcalls)
+        {
+            if (builtin.method == "readvectorf32x2")
+                return LBF_BUFFER_READVECTORF32X2;
+            if (builtin.method == "readvectorf32x3")
+                return LBF_BUFFER_READVECTORF32X3;
+            if (builtin.method == "readvectorf32x4")
+                return LBF_BUFFER_READVECTORF32X4;
+            if (builtin.method == "writevectorf32x2")
+                return LBF_BUFFER_WRITEVECTORF32X2;
+            if (builtin.method == "writevectorf32x3")
+                return LBF_BUFFER_WRITEVECTORF32X3;
+            if (builtin.method == "writevectorf32x4")
+                return LBF_BUFFER_WRITEVECTORF32X4;
+        }
     }
 
     if (builtin.object == "vector")
@@ -665,7 +682,15 @@ BuiltinInfo getBuiltinInfo(int bfid)
         return {3, 0, BuiltinInfo::Flag_NoneSafe};
 
     case LBF_BUFFER_READINTEGER:
+    case LBF_BUFFER_READVECTORF32X2:
+    case LBF_BUFFER_READVECTORF32X3:
+    case LBF_BUFFER_READVECTORF32X4:
         return {2, 1, BuiltinInfo::Flag_NoneSafe};
+
+    case LBF_BUFFER_WRITEVECTORF32X2:
+    case LBF_BUFFER_WRITEVECTORF32X3:
+    case LBF_BUFFER_WRITEVECTORF32X4:
+        return {3, 0, BuiltinInfo::Flag_NoneSafe};
 
     case LBF_VECTOR_MAGNITUDE:
     case LBF_VECTOR_NORMALIZE:

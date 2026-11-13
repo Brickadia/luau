@@ -1455,6 +1455,59 @@ static int luauF_writefp(lua_State* L, StkId res, TValue* arg0, int nresults, St
     return -1;
 }
 
+// N contiguous little-endian f32 components; independent of the VM vector representation (LUA_VECTOR_DOUBLE narrows to f32).
+template<int N>
+static int luauF_readvector(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
+{
+    if (N > LUA_VECTOR_SIZE)
+        return -1;
+
+#if !defined(LUAU_BIG_ENDIAN)
+    if (nparams >= 2 && nresults <= 1 && ttisbuffer(arg0) && ttisnumber(args))
+    {
+        int offset;
+        luai_num2int(offset, nvalue(args));
+        if (checkoutofbounds(offset, bufvalue(arg0)->len, N * sizeof(float)))
+            return -1;
+
+        float components[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        memcpy(components, (char*)bufvalue(arg0)->data + unsigned(offset), N * sizeof(float));
+
+        setvvalue(L, res, components[0], components[1], components[2], components[3]);
+        return 1;
+    }
+#endif
+
+    return -1;
+}
+
+template<int N>
+static int luauF_writevector(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
+{
+    if (N > LUA_VECTOR_SIZE)
+        return -1;
+
+#if !defined(LUAU_BIG_ENDIAN)
+    if (nparams >= 3 && nresults <= 0 && ttisbuffer(arg0) && ttisnumber(args) && ttisvector(args + 1))
+    {
+        int offset;
+        luai_num2int(offset, nvalue(args));
+        if (checkoutofbounds(offset, bufvalue(arg0)->len, N * sizeof(float)))
+            return -1;
+
+        const LUA_VECTOR_TYPE* v = vvalue(args + 1);
+        float components[4];
+        for (int i = 0; i < N; i++)
+            components[i] = float(v[i]);
+
+        memcpy((char*)bufvalue(arg0)->data + unsigned(offset), components, N * sizeof(float));
+        return 0;
+    }
+#endif
+
+    return -1;
+}
+
 static int luauF_vectormagnitude(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 1 && nresults <= 1 && ttisvector(arg0))
@@ -2786,6 +2839,13 @@ const luau_FastFunction luauF_table[256] = {
 
     luauF_tablecreate,
     luauF_tableclear,
+
+    luauF_readvector<2>,
+    luauF_readvector<3>,
+    luauF_readvector<4>,
+    luauF_writevector<2>,
+    luauF_writevector<3>,
+    luauF_writevector<4>,
 
 // When adding builtins, add them above this line; what follows is 64 "dummy" entries with luauF_missing fallback.
 // This is important so that older versions of the runtime that don't support newer builtins automatically fall back via luauF_missing.

@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <tuple>
 #include <string_view>
 #include <utility>
@@ -25,9 +26,10 @@ LUAU_FASTINTVARIABLE(LuauCodeGenReuseSlotLimit, 64)
 LUAU_FASTINTVARIABLE(LuauCodeGenReuseUdataTagLimit, 64)
 LUAU_FASTINTVARIABLE(LuauCodeGenLiveSlotReuseLimit, 8)
 LUAU_FASTFLAGVARIABLE(DebugLuauAbortingChecks)
-LUAU_FASTFLAGVARIABLE(LuauCodegenPropagateFallbackTags)
-LUAU_FLAGVERSION(LuauCodegenPropagateFallbackTags, 2)
+LUAU_FASTFLAGVARIABLE(LuauCodegenForwardSplitStore)
 LUAU_FASTFLAGVARIABLE(LuauCodegenMarkUsed)
+LUAU_FASTFLAG(LuauCodegenUserdataDirect)
+LUAU_FASTFLAG(LuauCodegenMultiLaneDot)
 
 namespace Luau
 {
@@ -555,6 +557,33 @@ struct ConstPropState
         valueMap[versionedVmRegLoad(loadCmd, OP_A(storeInst))] = OP_B(storeInst).index;
     }
 
+    void forwardVmRegSplitStoreToLoad(IrInst& storeInst)
+    {
+        CODEGEN_ASSERT(storeInst.cmd == IrCmd::STORE_SPLIT_TVALUE);
+        CODEGEN_ASSERT(OP_A(storeInst).kind == IrOpKind::VmReg);
+
+        // To avoid captured register invalidation tracking in lowering later, values from stores into captured registers are not propagated
+        // This prevents the case where store creates an alternative value location in case of a spill and is then clobbered in a user call
+        if (function.cfg.captured.regs.test(vmRegOp(OP_A(storeInst))))
+            return;
+
+        if (OP_C(storeInst).kind != IrOpKind::Inst)
+            return;
+
+        uint8_t tag = function.tagOp(OP_B(storeInst));
+        IrCmd loadCmd = IrCmd::NOP;
+
+        if (tag == LUA_TBOOLEAN)
+            loadCmd = IrCmd::LOAD_INT;
+        else if (tag == LUA_TNUMBER)
+            loadCmd = IrCmd::LOAD_DOUBLE;
+        else if (isGCO(tag))
+            loadCmd = IrCmd::LOAD_POINTER;
+
+        if (loadCmd != IrCmd::NOP)
+            valueMap[versionedVmRegLoad(loadCmd, OP_A(storeInst))] = OP_C(storeInst).index;
+    }
+
     // When loading from a VM register, there might be an instruction that has loaded the whole TValue
     // That TValue might have a CHECK_TAG data associated with it
     bool substituteTagLoadWithTValueData(IrBuilder& build, IrInst& loadInst)
@@ -1068,6 +1097,13 @@ struct ConstPropState
                             return;
                         }
                         break;
+                    case IrCmd::BUFFER_READF32X4:
+                        if (info.loadCmd == IrCmd::BUFFER_READF32X4)
+                        {
+                            substitute(function, loadInst, info.value);
+                            return;
+                        }
+                        break;
                     default:
                         CODEGEN_ASSERT(!"unknown load instruction");
                     }
@@ -1096,13 +1132,11 @@ struct ConstPropState
         bufferLoadStoreInfo.push_back(info);
     }
 
-    void forwardBufferStoreToLoad(IrInst& storeInst, IrCmd loadCmd, uint8_t accessSize)
+    bool invalidateBufferRange(IrInst& storeInst, uint8_t accessSize, uint8_t tag, std::optional<int> offset)
     {
-        uint8_t tag = function.tagOp(OP_D(storeInst));
-
         // Writing at unknown offset removes everything in the same kind of memory (buffer/userdata)
         // For userdata, we could check where the pointer is coming from, but we don't have an example of such usage
-        if (OP_B(storeInst).kind != IrOpKind::Constant)
+        if (!offset)
         {
             for (size_t i = 0; i < bufferLoadStoreInfo.size();)
             {
@@ -1119,17 +1153,15 @@ struct ConstPropState
                 }
             }
 
-            return;
+            return false;
         }
-
-        int offset = function.intOp(OP_B(storeInst));
 
         // Write at a constant offset invalidates that range in every object unless we know the pointers are unrelated
         for (size_t i = 0; i < bufferLoadStoreInfo.size();)
         {
             BufferLoadStoreInfo& info = bufferLoadStoreInfo[i];
 
-            bool intersectingRange = offset + accessSize - 1 >= info.offset && offset <= info.offset + info.accessSize - 1;
+            bool intersectingRange = *offset + accessSize - 1 >= info.offset && *offset <= info.offset + info.accessSize - 1;
 
             if (intersectingRange && info.tag == tag)
             {
@@ -1152,6 +1184,17 @@ struct ConstPropState
                 i++;
             }
         }
+
+        return true;
+    }
+
+    void forwardBufferStoreToLoad(IrInst& storeInst, IrCmd loadCmd, uint8_t accessSize)
+    {
+        uint8_t tag = function.tagOp(OP_D(storeInst));
+        std::optional<int> offset = function.asIntOp(OP_B(storeInst));
+
+        if (!invalidateBufferRange(storeInst, accessSize, tag, offset))
+            return;
 
         IrOp value = OP_C(storeInst);
 
@@ -1178,7 +1221,7 @@ struct ConstPropState
         info.address = OP_A(storeInst);
         info.value = value;
 
-        info.offset = offset;
+        info.offset = *offset;
 
         bufferLoadStoreInfo.push_back(info);
     }
@@ -1583,6 +1626,9 @@ static void handleBuiltinEffects(ConstPropState& state, LuauBuiltinFunction bfid
     case LBF_INTEGER_CLAMP:
     case LBF_INTEGER_EXTRACT:
     case LBF_INTEGER_TONUMBER:
+    case LBF_BUFFER_READVECTORF32X2:
+    case LBF_BUFFER_READVECTORF32X3:
+    case LBF_BUFFER_READVECTORF32X4:
         break;
     case LBF_BUFFER_WRITEU8:
     case LBF_BUFFER_WRITEU16:
@@ -1590,6 +1636,9 @@ static void handleBuiltinEffects(ConstPropState& state, LuauBuiltinFunction bfid
     case LBF_BUFFER_WRITEF32:
     case LBF_BUFFER_WRITEF64:
     case LBF_BUFFER_WRITEINTEGER:
+    case LBF_BUFFER_WRITEVECTORF32X2:
+    case LBF_BUFFER_WRITEVECTORF32X3:
+    case LBF_BUFFER_WRITEVECTORF32X4:
         state.invalidateHeapBufferData();
         break;
     case LBF_TABLE_INSERT:
@@ -2160,6 +2209,9 @@ static void constPropInInst(ConstPropState& state, IrBuilder& build, IrFunction&
 
             if (OP_C(inst).kind == IrOpKind::Constant)
                 state.saveValue(OP_A(inst), OP_C(inst));
+
+            if (FFlag::LuauCodegenForwardSplitStore)
+                state.forwardVmRegSplitStoreToLoad(inst);
         }
         else
         {
@@ -2583,6 +2635,19 @@ static void constPropInInst(ConstPropState& state, IrBuilder& build, IrFunction&
     case IrCmd::BUFFER_WRITEI64:
         state.forwardBufferStoreToLoad(inst, IrCmd::BUFFER_READI64, 8);
         break;
+    case IrCmd::BUFFER_READVECTOR:
+        break;
+    case IrCmd::BUFFER_WRITEVECTOR:
+        CODEGEN_ASSERT(OP_E(inst).kind == IrOpKind::Constant);
+        state.invalidateBufferRange(
+            inst, uint8_t(function.intOp(OP_E(inst)) * sizeof(float)), function.tagOp(OP_D(inst)), function.asIntOp(OP_B(inst)));
+        break;
+    case IrCmd::BUFFER_READF32X4:
+        state.substituteOrRecordBufferLoad(block, index, inst, 16);
+        break;
+    case IrCmd::BUFFER_WRITEF32X4:
+        state.forwardBufferStoreToLoad(inst, IrCmd::BUFFER_READF32X4, 16);
+        break;
     case IrCmd::CHECK_GC:
         // It is enough to perform a GC check once in a block
         if (state.checkedGc)
@@ -2641,6 +2706,10 @@ static void constPropInInst(ConstPropState& state, IrBuilder& build, IrFunction&
 
     case IrCmd::INVOKE_FASTPCALL:
         state.invalidateRegistersFrom(vmRegOp(OP_A(inst)));
+        state.invalidateUserCall();
+        break;
+    case IrCmd::INVOKE_NAMECALL:
+        state.invalidateRegistersFrom(vmRegOp(OP_B(inst)));
         state.invalidateUserCall();
         break;
 
@@ -3241,7 +3310,6 @@ static void constPropInInst(ConstPropState& state, IrBuilder& build, IrFunction&
     case IrCmd::MUL_VEC:
     case IrCmd::DIV_VEC:
     case IrCmd::IDIV_VEC:
-    case IrCmd::DOT_VEC:
     case IrCmd::MIN_VEC:
     case IrCmd::MAX_VEC:
         if (IrInst* a = function.asInstOp(OP_A(inst)); a && a->cmd == IrCmd::TAG_VECTOR)
@@ -3249,6 +3317,19 @@ static void constPropInInst(ConstPropState& state, IrBuilder& build, IrFunction&
 
         if (IrInst* b = function.asInstOp(OP_B(inst)); b && b->cmd == IrCmd::TAG_VECTOR)
             replace(function, OP_B(inst), OP_A(b));
+
+        state.substituteOrRecord(inst, index);
+        break;
+
+    case IrCmd::DOT_VEC:
+        if (!FFlag::LuauCodegenMultiLaneDot || function.intOp(OP_C(inst)) == 3)
+        {
+            if (IrInst* a = function.asInstOp(OP_A(inst)); a && a->cmd == IrCmd::TAG_VECTOR)
+                replace(function, OP_A(inst), OP_A(a));
+
+            if (IrInst* b = function.asInstOp(OP_B(inst)); b && b->cmd == IrCmd::TAG_VECTOR)
+                replace(function, OP_B(inst), OP_A(b));
+        }
 
         state.substituteOrRecord(inst, index);
         break;
@@ -3266,6 +3347,13 @@ static void constPropInInst(ConstPropState& state, IrBuilder& build, IrFunction&
     case IrCmd::FLOAT_TO_VEC:
     case IrCmd::TAG_VECTOR:
         state.substituteOrRecord(inst, index);
+        break;
+
+    case IrCmd::UNTAG_VECTOR:
+        if (IrInst* a = function.asInstOp(OP_A(inst)); a && a->cmd == IrCmd::UNTAG_VECTOR)
+            substitute(function, inst, OP_A(inst));
+        else
+            state.substituteOrRecord(inst, index);
         break;
 
     case IrCmd::INVOKE_LIBM:
@@ -3598,13 +3686,13 @@ static void constPropInBlock(IrBuilder& build, IrBlock& block, ConstPropState& s
         if (state.reachedLimits)
         {
             // Fallback entry data is no longer available
-            if (FFlag::LuauCodegenPropagateFallbackTags && !isPseudo(inst.cmd))
+            if (!isPseudo(inst.cmd))
                 invalidateFallbackEntryTags(function, inst);
 
             continue;
         }
 
-        if (FFlag::LuauCodegenPropagateFallbackTags && !isPseudo(inst.cmd))
+        if (!isPseudo(inst.cmd))
             snapshotFallbackEntryTags(function, inst, state);
 
         constPropInInst(state, build, function, block, inst, index);
@@ -3730,6 +3818,9 @@ static bool includeBlockInLinearPath(IrFunction& function, const IrBlock& block)
 
         // Same rule applies to fast pcall path as it acts as a call
         if (inst.cmd == IrCmd::INVOKE_FASTPCALL)
+            return false;
+
+        if (FFlag::LuauCodegenUserdataDirect && inst.cmd == IrCmd::INVOKE_NAMECALL)
             return false;
     }
 
@@ -3949,29 +4040,20 @@ void constPropInBlockChains(IrBuilder& build)
     std::vector<uint8_t> visited(function.blocks.size(), false);
 
     function.blockExitTags.resize(function.blocks.size());
-
-    if (FFlag::LuauCodegenPropagateFallbackTags)
-        function.fallbackEntryTags.resize(function.blocks.size());
+    function.fallbackEntryTags.resize(function.blocks.size());
 
     for (IrBlock& block : function.blocks)
     {
-        if ((!FFlag::LuauCodegenPropagateFallbackTags && block.kind == IrBlockKind::Fallback) || block.kind == IrBlockKind::Dead)
+        if (block.kind == IrBlockKind::Dead)
             continue;
 
         if (visited[function.getBlockIndex(block)])
             continue;
 
-        if (FFlag::LuauCodegenPropagateFallbackTags)
-        {
-            if (block.kind == IrBlockKind::Fallback)
-                constPropInFallback(build, visited, block, state);
-            else
-                constPropInBlockChain(build, visited, &block, state);
-        }
+        if (block.kind == IrBlockKind::Fallback)
+            constPropInFallback(build, visited, block, state);
         else
-        {
             constPropInBlockChain(build, visited, &block, state);
-        }
     }
 }
 

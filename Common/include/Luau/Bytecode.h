@@ -50,10 +50,10 @@
 // Version 7: Adds LBC_CONSTANT_TABLE_WITH_CONSTANTS for DUPTABLE with pre-filled constant values. Currently supported.
 // Version 8: Adds LBC_CONSTANT_INTEGER for 64-bit integer constants. Currently supported.
 // Version 9: Adds atom-based userdata field access acceleration. Currently supported.
-// Version 10: Adds LBC_CONSTANT_CLASS_SHAPE and NEWCLASSMEMBER for use with Luau Classes. Experimental.
-// Version 11: Adds CALLFB, CMPPROTO and feedback vector description. Experimental.
-// Version 12: Adds cost function serialized for proto and prepend each proto with size in bytes. Experimental.
-// Version 13: Adds support for double-precision vector constants. Experimental.
+// Version 10: Adds LBC_CONSTANT_CLASS_SHAPE and NEWCLASSMEMBER for use with Luau Classes. No longer supported when class feature is enabled.
+// Version 11: Adds CALLFB, CMPPROTO and feedback vector description. Currently supported.
+// Version 12: Adds cost function serialized for proto and prepend each proto with size in bytes. Currently supported.
+// Version 13: Adds support for double-precision vector constants. Currently supported.
 // Version 14: Adds FASTPCALL. Currently supported.
 
 // WIP Versions: Used for in-progress features that might require multiple changes to bytecode. Since these versions are higher than the non-WIP versions, they are responsible for maintaining compatibility with them. For example, tests exercising WIP bytecode versions may need to enable flags for unreleased but non-WIP bytecode versions.
@@ -559,7 +559,7 @@ enum LuauBytecodeTag
     // Bytecode version; runtime supports [MIN, MAX], compiler emits TARGET by default but may emit a higher version when flags are enabled
     LBC_VERSION_MIN = 3,
     LBC_VERSION_MAX = 14,
-    LBC_VERSION_TARGET = 13,
+    LBC_VERSION_TARGET = 14,
     LBC_VERSION_CLASSES = 100,
     // Type encoding version
     LBC_TYPE_VERSION_MIN = 1,
@@ -800,6 +800,14 @@ enum LuauBuiltinFunction
     // table.create / table.clear
     LBF_TABLE_CREATE,
     LBF_TABLE_CLEAR,
+
+    // buffer.readvectorf32x* / buffer.writevectorf32x* (N contiguous f32 components)
+    LBF_BUFFER_READVECTORF32X2,
+    LBF_BUFFER_READVECTORF32X3,
+    LBF_BUFFER_READVECTORF32X4,
+    LBF_BUFFER_WRITEVECTORF32X2,
+    LBF_BUFFER_WRITEVECTORF32X3,
+    LBF_BUFFER_WRITEVECTORF32X4,
 };
 
 // Capture type, used in LOP_CAPTURE

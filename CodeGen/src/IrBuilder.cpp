@@ -15,7 +15,7 @@
 LUAU_FASTFLAGVARIABLE(LuauCodeGenFastpcall)
 LUAU_FLAGVERSION(LuauCodeGenFastpcall, 2)
 LUAU_FASTFLAG(LuauCodegenMarkUsed)
-LUAU_FASTFLAG(LuauRuntimeFeedback)
+LUAU_FASTFLAG(LuauCodegenRuntimeFeedback)
 
 namespace Luau
 {
@@ -762,7 +762,7 @@ void IrBuilder::beginBlock(IrOp block)
 
     inTerminatedBlock = false;
 
-    if (FFlag::LuauRuntimeFeedback && target.counterSet != ~0u && !function.counterSets[target.counterSet].counters.empty())
+    if (FFlag::LuauCodegenRuntimeFeedback && target.counterSet != ~0u && !function.counterSets[target.counterSet].counters.empty())
         inst(IrCmd::UPDATE_COUNTERS, constUint(target.counterSet));
 }
 

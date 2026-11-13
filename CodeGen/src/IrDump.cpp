@@ -338,6 +338,8 @@ const char* getCmdName(IrCmd cmd)
         return "FLOAT_TO_VEC";
     case IrCmd::TAG_VECTOR:
         return "TAG_VECTOR";
+    case IrCmd::UNTAG_VECTOR:
+        return "UNTAG_VECTOR";
     case IrCmd::TRUNCATE_UINT:
         return "TRUNCATE_UINT";
     case IrCmd::ADJUST_STACK_TO_REG:
@@ -352,6 +354,8 @@ const char* getCmdName(IrCmd cmd)
         return "CHECK_FASTCALL_RES";
     case IrCmd::INVOKE_FASTPCALL:
         return "INVOKE_FASTPCALL";
+    case IrCmd::INVOKE_NAMECALL:
+        return "INVOKE_NAMECALL";
     case IrCmd::DO_ARITH:
         return "DO_ARITH";
     case IrCmd::DO_LEN:
@@ -542,6 +546,14 @@ const char* getCmdName(IrCmd cmd)
         return "BUFFER_READI64";
     case IrCmd::BUFFER_WRITEI64:
         return "BUFFER_WRITEI64";
+    case IrCmd::BUFFER_READVECTOR:
+        return "BUFFER_READVECTOR";
+    case IrCmd::BUFFER_WRITEVECTOR:
+        return "BUFFER_WRITEVECTOR";
+    case IrCmd::BUFFER_READF32X4:
+        return "BUFFER_READF32X4";
+    case IrCmd::BUFFER_WRITEF32X4:
+        return "BUFFER_WRITEF32X4";
     case IrCmd::JUMP_CMP_PROTOID:
         return "JUMP_CMP_PROTOID";
     }

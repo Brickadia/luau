@@ -35,7 +35,6 @@
 #include <string.h>
 
 LUAU_DYNAMIC_FASTFLAG(LuauTableFindImprovement)
-LUAU_DYNAMIC_FASTFLAGVARIABLE(LuauTableRobustOom, false)
 
 // Set this to 1 to change the hash function to something different (and possibly trivial). Useful
 // for checking if a Lua program's behavior depends on the hash function.
@@ -699,168 +698,102 @@ static void resize(lua_State* L, LuaTable* t, int nasize, int nhsize)
     if (nasize > MAXSIZE || nhsize > MAXSIZE)
         luaG_runerror(L, "table overflow");
 
-    if (DFFlag::LuauTableRobustOom)
+    // check for node size bit mask overflow and round up requested hash size
+    int lsizenode = 0;
+
+    LUAU_ASSERT(nhsize >= 0);
+    if (nhsize != 0)
     {
-        // check for node size bit mask overflow and round up requested hash size
-        int lsizenode = 0;
+        lsizenode = ceillog2(nhsize);
+        if (lsizenode > MAXBITS)
+            luaG_runerror(L, "table overflow");
 
-        LUAU_ASSERT(nhsize >= 0);
-        if (nhsize != 0)
-        {
-            lsizenode = ceillog2(nhsize);
-            if (lsizenode > MAXBITS)
-                luaG_runerror(L, "table overflow");
-
-            nhsize = twoto(lsizenode);
-        }
-
-        int oldsizearray = t->sizearray;
-        int oldsizenode = twoto(t->lsizenode);
-        TValue* oldarray = t->array;
-        LuaNode* oldnode = t->node;
-
-        TValue* newarray = t->array;
-
-        if (nasize != oldsizearray)
-        {
-            newarray = luaM_newarray(L, nasize, TValue, t->memcat);
-
-            if (nasize < oldsizearray)
-            {
-                // copy elements from remaining slice
-                if (nasize != 0)
-                    memcpy(newarray, oldarray, nasize * sizeof(TValue));
-            }
-            else
-            {
-                // copy old elements
-                if (oldsizearray != 0)
-                    memcpy(newarray, oldarray, oldsizearray * sizeof(TValue));
-
-                // clear new elements
-                for (int i = oldsizearray; i < nasize; i++)
-                    setnilvalue(&newarray[i]);
-            }
-        }
-
-        LuaNode* newnode = cast_to(LuaNode*, dummynode);
-
-        if (nhsize != 0)
-        {
-            // if we allocated a new array part, we have to be careful to with hash part allocation failure
-            if (oldarray != newarray)
-            {
-                newnode = luaM_trynewarray(L, nhsize, LuaNode, t->memcat);
-
-                if (newnode == nullptr)
-                {
-                    luaM_freearray(L, newarray, nasize, TValue, t->memcat);
-                    luaD_throw(L, LUA_ERRMEM);
-                }
-            }
-            else
-            {
-                newnode = luaM_newarray(L, nhsize, LuaNode, t->memcat);
-            }
-
-            for (int i = 0; i < nhsize; i++)
-            {
-                LuaNode* n = &newnode[i];
-                gnext(n) = 0;
-                setnilvalue(gkey(n));
-                setnilvalue(gval(n));
-            }
-        }
-
-        // update table structure now that both allocations succeeded
-        t->array = newarray;
-        t->sizearray = nasize;
-
-        t->node = newnode;
-        t->lsizenode = cast_byte(lsizenode);
-        t->nodemask8 = cast_byte((1 << lsizenode) - 1);
-        t->lastfree = nhsize; // all positions are free
-
-        // re-insert elements from vanishing array slice
-        for (int i = nasize; i < oldsizearray; i++)
-        {
-            if (!ttisnil(&oldarray[i]))
-            {
-                TValue ok;
-                setnvalue(&ok, cast_num(i + 1));
-                // integer number keys from a shrinking slice cannot get into the new array part
-                setobjt2t(L, reinsertkey(L, t, &ok, false), &oldarray[i]);
-            }
-        }
-
-        // re-insert elements from hash part
-        for (int i = oldsizenode - 1; i >= 0; i--)
-        {
-            LuaNode* old = oldnode + i;
-            if (!ttisnil(gval(old)))
-            {
-                TValue ok;
-                getnodekey(L, &ok, old);
-                setobjt2t(L, reinsertkey(L, t, &ok, true), gval(old));
-            }
-        }
-
-        // make sure we haven't recursively rehashed during element migration
-        LUAU_ASSERT(newnode == t->node);
-        LUAU_ASSERT(newarray == t->array);
-
-        // free old array
-        if (nasize != oldsizearray)
-            luaM_freearray(L, oldarray, oldsizearray, TValue, t->memcat);
-
-        // free old node
-        if (oldnode != dummynode)
-            luaM_freearray(L, oldnode, oldsizenode, LuaNode, t->memcat);
-
-        return;
+        nhsize = twoto(lsizenode);
     }
 
-    int oldasize = t->sizearray;
-    int oldhsize = t->lsizenode;
-    LuaNode* nold = t->node; // save old hash ...
-    if (nasize > oldasize)   // array part must grow?
-        setarrayvector(L, t, nasize);
-    // create new hash part with appropriate size
-    setnodevector(L, t, nhsize);
-    // used for the migration check at the end
-    LuaNode* nnew = t->node;
-    if (nasize < oldasize)
-    { // array part must shrink?
-        TValue* oldarray = t->array;
+    int oldsizearray = t->sizearray;
+    int oldsizenode = twoto(t->lsizenode);
+    TValue* oldarray = t->array;
+    LuaNode* oldnode = t->node;
 
-        // shrink array
-        t->array = luaM_newarray(L, nasize, TValue, t->memcat);
-        t->sizearray = nasize;
+    TValue* newarray = t->array;
 
-        // copy elements from remaining slice
-        if (nasize != 0)
-            memcpy(t->array, oldarray, nasize * sizeof(TValue));
+    if (nasize != oldsizearray)
+    {
+        newarray = luaM_newarray(L, nasize, TValue, t->memcat);
 
-        // re-insert elements from vanishing slice (landing into the hash part)
-        for (int i = nasize; i < oldasize; i++)
+        if (nasize < oldsizearray)
         {
-            if (!ttisnil(&oldarray[i]))
+            // copy elements from remaining slice
+            if (nasize != 0)
+                memcpy(newarray, oldarray, nasize * sizeof(TValue));
+        }
+        else
+        {
+            // copy old elements
+            if (oldsizearray != 0)
+                memcpy(newarray, oldarray, oldsizearray * sizeof(TValue));
+
+            // clear new elements
+            for (int i = oldsizearray; i < nasize; i++)
+                setnilvalue(&newarray[i]);
+        }
+    }
+
+    LuaNode* newnode = cast_to(LuaNode*, dummynode);
+
+    if (nhsize != 0)
+    {
+        // if we allocated a new array part, we have to be careful to with hash part allocation failure
+        if (oldarray != newarray)
+        {
+            newnode = luaM_trynewarray(L, nhsize, LuaNode, t->memcat);
+
+            if (newnode == nullptr)
             {
-                TValue ok;
-                setnvalue(&ok, cast_num(i + 1));
-                // integer number keys from a shrinking slice cannot get into the new array part
-                setobjt2t(L, reinsertkey(L, t, &ok, false), &oldarray[i]);
+                luaM_freearray(L, newarray, nasize, TValue, t->memcat);
+                luaD_throw(L, LUA_ERRMEM);
             }
         }
+        else
+        {
+            newnode = luaM_newarray(L, nhsize, LuaNode, t->memcat);
+        }
 
-        luaM_freearray(L, oldarray, oldasize, TValue, t->memcat);
+        for (int i = 0; i < nhsize; i++)
+        {
+            LuaNode* n = &newnode[i];
+            gnext(n) = 0;
+            setnilvalue(gkey(n));
+            setnilvalue(gval(n));
+        }
     }
-    // used for the migration check at the end
-    TValue* anew = t->array;
+
+    // update table structure now that both allocations succeeded
+    t->array = newarray;
+    t->sizearray = nasize;
+
+    t->node = newnode;
+    t->lsizenode = cast_byte(lsizenode);
+    t->nodemask8 = cast_byte((1 << lsizenode) - 1);
+    t->lastfree = nhsize; // all positions are free
+
+    // re-insert elements from vanishing array slice
+    for (int i = nasize; i < oldsizearray; i++)
+    {
+        if (!ttisnil(&oldarray[i]))
+        {
+            TValue ok;
+            setnvalue(&ok, cast_num(i + 1));
+            // integer number keys from a shrinking slice cannot get into the new array part
+            setobjt2t(L, reinsertkey(L, t, &ok, false), &oldarray[i]);
+        }
+    }
+
     // re-insert elements from hash part
-    for (int i = twoto(oldhsize) - 1; i >= 0; i--)
+    for (int i = oldsizenode - 1; i >= 0; i--)
     {
-        LuaNode* old = nold + i;
+        LuaNode* old = oldnode + i;
         if (!ttisnil(gval(old)))
         {
             TValue ok;
@@ -870,11 +803,16 @@ static void resize(lua_State* L, LuaTable* t, int nasize, int nhsize)
     }
 
     // make sure we haven't recursively rehashed during element migration
-    LUAU_ASSERT(nnew == t->node);
-    LUAU_ASSERT(anew == t->array);
+    LUAU_ASSERT(newnode == t->node);
+    LUAU_ASSERT(newarray == t->array);
 
-    if (nold != dummynode)
-        luaM_freearray(L, nold, twoto(oldhsize), LuaNode, t->memcat); // free old array
+    // free old array
+    if (nasize != oldsizearray)
+        luaM_freearray(L, oldarray, oldsizearray, TValue, t->memcat);
+
+    // free old node
+    if (oldnode != dummynode)
+        luaM_freearray(L, oldnode, oldsizenode, LuaNode, t->memcat);
 }
 
 // When we already know that new key is an integer number
@@ -1523,31 +1461,19 @@ void luaH_setreadonly(lua_State* L, LuaTable* t, bool readonly)
         // if there are metamethods, place the metamethod cache before the array elements
         if (found)
         {
-            if (DFFlag::LuauTableRobustOom)
+            // if allocation fails, the optimization is skipped instead of erroring as an error might be unexpected from a table freeze
+            if (TValue* newarray = luaM_trynewarray(L, t->sizearray + TM_N, TValue, t->memcat))
             {
-                // if allocation fails, the optimization is skipped instead of erroring as an error might be unexpected from a table freeze
-                if (TValue* newarray = luaM_trynewarray(L, t->sizearray + TM_N, TValue, t->memcat))
-                {
-                    TValue* oldarray = t->array;
+                TValue* oldarray = t->array;
 
-                    if (t->sizearray != 0)
-                        memcpy(newarray + TM_N, oldarray, t->sizearray * sizeof(TValue));
+                if (t->sizearray != 0)
+                    memcpy(newarray + TM_N, oldarray, t->sizearray * sizeof(TValue));
 
-                    memcpy(newarray, metamethods, sizeof(metamethods));
-                    t->array = newarray + TM_N;
-                    t->readonly |= 2;
-
-                    luaM_freearray(L, oldarray, t->sizearray, TValue, t->memcat);
-                }
-            }
-            else
-            {
-                TValue* array = t->array;
-                luaM_reallocarray(L, array, t->sizearray, t->sizearray + TM_N, TValue, t->memcat);
-                memmove(array + TM_N, array, t->sizearray * sizeof(TValue));
-                memcpy(array, metamethods, sizeof(metamethods));
-                t->array = array + TM_N;
+                memcpy(newarray, metamethods, sizeof(metamethods));
+                t->array = newarray + TM_N;
                 t->readonly |= 2;
+
+                luaM_freearray(L, oldarray, t->sizearray, TValue, t->memcat);
             }
         }
     }

@@ -4,6 +4,7 @@
 
 #include "lua.h"
 #include "lcommon.h"
+#include "lbytecode.h"
 
 /*
 ** Union of all collectible objects
@@ -302,7 +303,6 @@ typedef struct TString
     char data[1]; // string data is allocated right after the header
 } TString;
 
-
 #define getstr(ts) (ts)->data
 #define svalue(o) getstr(tsvalue(o))
 
@@ -436,8 +436,37 @@ typedef struct Proto
     Proto* optimized;
     Proto* deoptimized;
     uint64_t cost;
+
+    // Set while the proto is a lazy-load stub (luau_loadlazy)
+    struct LuauLazyChunk* lazychunk;
 } Proto;
 // clang-format on
+
+static const uint32_t userdataTypeLimit = LBC_TYPE_TAGGED_USERDATA_END - LBC_TYPE_TAGGED_USERDATA_BASE;
+
+// The bytecode of a luau_loadlazy chunk, shared by all of its stubs
+typedef struct LuauLazyChunk
+{
+    const char* data;
+    size_t size;
+    void* owner;
+    void (*release)(void* owner);
+
+    uint32_t refs; // the load, every stub and every build in progress
+
+    struct LuaTable* envt;
+    struct LuaTable* importenv;
+
+    uint8_t memcat;
+    uint8_t version;
+    uint8_t typesversion;
+    uint8_t userdataRemapping[userdataTypeLimit];
+
+    uint32_t* stringOffsets; // offset of each string's length
+    uint32_t stringCount;
+    uint32_t* protoOffsets; // offset of each function's maxstacksize byte
+    uint32_t protoCount;
+} LuauLazyChunk;
 
 typedef struct LocVar
 {

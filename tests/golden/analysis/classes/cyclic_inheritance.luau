@@ -1,9 +1,7 @@
 --!golden fflags=DebugLuauUserDefinedClasses=true,DebugLuauUserDefinedClassesRuntime=true
+local B
 open class A extends B
 end
 
-open class B extends C
-end
-
-open class C extends A
+open class B extends A
 end

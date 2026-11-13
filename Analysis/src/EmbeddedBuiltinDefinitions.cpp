@@ -4,7 +4,7 @@
 LUAU_FASTFLAG(LuauIntegerLibrary)
 LUAU_FASTFLAG(LuauIntegerType2)
 LUAU_FASTFLAG(LuauAllowGlobalDeclarationToBeCalledClass)
-LUAU_FASTFLAG(DebugLuauExactTableTypes)
+LUAU_FASTFLAG(DebugLuauBufferVectorLibrary)
 LUAU_FASTFLAG(DebugLuauUserDefinedClasses)
 LUAU_FASTFLAGVARIABLE(LuauCoroutineFinallyAnalysis)
 LUAU_FASTFLAGVARIABLE(LuauRemoveLoadstringFromBuiltinDefinitions)
@@ -286,32 +286,6 @@ declare table: {
 
 )BUILTIN_SRC";
 
-static constexpr const char* kBuiltinDefinitionTableSrc_EXACT_TABLES = R"BUILTIN_SRC(
-
-declare table: {
-    concat: <V>(t: {V, ...}, sep: string?, i: number?, j: number?) -> string,
-    insert: (<V>(t: {V, ...}, value: V) -> ()) & (<V>(t: {V, ...}, pos: number, value: V) -> ()),
-    maxn: <V>(t: {V, ...}) -> number,
-    remove: <V>(t: {V, ...}, number?) -> V?,
-    sort: <V>(t: {V, ...}, comp: ((V, V) -> boolean)?) -> (),
-    create: <V>(count: number, value: V?) -> {V},
-    find: <V>(haystack: {V, ...}, needle: V, init: number?) -> number?,
-
-    unpack: <V>(list: {V, ...}, i: number?, j: number?) -> ...V,
-    pack: <V>(...V) -> { n: number, [number]: V },
-
-    getn: <V>(t: {V, ...}) -> number,
-    foreach: <K, V>(t: {[K]: V, ...}, f: (K, V) -> ()) -> (),
-    foreachi: <V>({V, ...}, (number, V) -> ()) -> (),
-
-    move: <V>(src: {V, ...}, a: number, b: number, t: number, dst: {V, ...}?) -> {V, ...},
-
-    clear: (table: {...}) -> (),
-    isfrozen: (t: {...}) -> boolean,
-}
-
-)BUILTIN_SRC";
-
 static constexpr const char* kBuiltinDefinitionDebugSrc = R"BUILTIN_SRC(
 
 declare debug: {
@@ -334,7 +308,7 @@ declare utf8: {
 
 )BUILTIN_SRC";
 
-static constexpr const char* kBuiltinDefinitionBufferSrc = R"BUILTIN_SRC(
+static constexpr const char* kBuiltinDefinitionBufferSrcPrefix = R"BUILTIN_SRC(
 --- Buffer API
 declare buffer: {
     create: @checked (size: number) -> buffer,
@@ -351,41 +325,21 @@ declare buffer: {
     readu32: @checked (b: buffer, offset: number) -> number,
     readf32: @checked (b: buffer, offset: number) -> number,
     readf64: @checked (b: buffer, offset: number) -> number,
-    writei8: @checked (b: buffer, offset: number, value: number) -> (),
-    writeu8: @checked (b: buffer, offset: number, value: number) -> (),
-    writei16: @checked (b: buffer, offset: number, value: number) -> (),
-    writeu16: @checked (b: buffer, offset: number, value: number) -> (),
-    writei32: @checked (b: buffer, offset: number, value: number) -> (),
-    writeu32: @checked (b: buffer, offset: number, value: number) -> (),
-    writef32: @checked (b: buffer, offset: number, value: number) -> (),
-    writef64: @checked (b: buffer, offset: number, value: number) -> (),
-    readstring: @checked (b: buffer, offset: number, count: number) -> string,
-    writestring: @checked (b: buffer, offset: number, value: string, count: number?) -> (),
-    readbits: @checked (b: buffer, bitOffset: number, bitCount: number) -> number,
-    writebits: @checked (b: buffer, bitOffset: number, bitCount: number, value: number) -> (),
-    readinteger: @checked (b: buffer, offset: number) -> integer,
-    writeinteger: @checked (b: buffer, offset: number, value: integer) -> (),
-}
-
 )BUILTIN_SRC";
 
-static constexpr const char* kBuiltinDefinitionBufferSrc_NOINTEGER = R"BUILTIN_SRC(
---- Buffer API
-declare buffer: {
-    create: @checked (size: number) -> buffer,
-    fromstring: @checked (str: string) -> buffer,
-    tostring: @checked (b: buffer) -> string,
-    len: @checked (b: buffer) -> number,
-    copy: @checked (target: buffer, targetOffset: number, source: buffer, sourceOffset: number?, count: number?) -> (),
-    fill: @checked (b: buffer, offset: number, value: number, count: number?) -> (),
-    readi8: @checked (b: buffer, offset: number) -> number,
-    readu8: @checked (b: buffer, offset: number) -> number,
-    readi16: @checked (b: buffer, offset: number) -> number,
-    readu16: @checked (b: buffer, offset: number) -> number,
-    readi32: @checked (b: buffer, offset: number) -> number,
-    readu32: @checked (b: buffer, offset: number) -> number,
-    readf32: @checked (b: buffer, offset: number) -> number,
-    readf64: @checked (b: buffer, offset: number) -> number,
+static constexpr const char* kBuiltinDefinitionBufferIntegerSrc = R"BUILTIN_SRC(
+    readinteger: @checked (b: buffer, offset: number) -> integer,
+    writeinteger: @checked (b: buffer, offset: number, value: integer) -> (),
+)BUILTIN_SRC";
+
+static constexpr const char* kBuiltinDefinitionBufferVectorSrc = R"BUILTIN_SRC(
+    readvectorf32x2: @checked (b: buffer, offset: number) -> vector,
+    readvectorf32x3: @checked (b: buffer, offset: number) -> vector,
+    writevectorf32x2: @checked (b: buffer, offset: number, value: vector) -> (),
+    writevectorf32x3: @checked (b: buffer, offset: number, value: vector) -> (),
+)BUILTIN_SRC";
+
+static constexpr const char* kBuiltinDefinitionBufferSrcSuffix = R"BUILTIN_SRC(
     writei8: @checked (b: buffer, offset: number, value: number) -> (),
     writeu8: @checked (b: buffer, offset: number, value: number) -> (),
     writei16: @checked (b: buffer, offset: number, value: number) -> (),
@@ -501,16 +455,15 @@ std::string getBuiltinDefinitionSource()
     else
         result += kBuiltinDefinitionCoroutineSrc_DEPRECATED;
 
-    if (FFlag::DebugLuauExactTableTypes)
-        result += kBuiltinDefinitionTableSrc_EXACT_TABLES;
-    else
-        result += kBuiltinDefinitionTableSrc;
+    result += kBuiltinDefinitionTableSrc;
     result += kBuiltinDefinitionDebugSrc;
     result += kBuiltinDefinitionUtf8Src;
+    result += kBuiltinDefinitionBufferSrcPrefix;
+    if (FFlag::DebugLuauBufferVectorLibrary)
+        result += kBuiltinDefinitionBufferVectorSrc;
     if (FFlag::LuauIntegerType2 && FFlag::LuauIntegerLibrary)
-        result += kBuiltinDefinitionBufferSrc;
-    else
-        result += kBuiltinDefinitionBufferSrc_NOINTEGER;
+        result += kBuiltinDefinitionBufferIntegerSrc;
+    result += kBuiltinDefinitionBufferSrcSuffix;
 
     result += kBuiltinDefinitionVectorSrc;
 

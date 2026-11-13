@@ -410,7 +410,7 @@ ControlFlow TypeChecker::check(const ScopePtr& scope, const AstStat& program)
     }
     else if (FFlag::DebugLuauUserDefinedClasses && program.is<AstStatClass>())
     {
-        reportError(program.as<AstStatClass>()->name->location, GenericError{"class keyword is illegal here"});
+        reportError(program.as<AstStatClass>()->location, GenericError{"class keyword is illegal here"});
         return ControlFlow::None;
     }
     else

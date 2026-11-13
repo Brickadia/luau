@@ -8,7 +8,6 @@
 LUAU_FASTFLAG(DebugLuauUserDefinedClasses)
 LUAU_FASTFLAG(LuauCostModel)
 LUAU_FASTFLAGVARIABLE(LuauInlinerNamecallSelfFromMove)
-LUAU_FASTFLAG(LuauCompileRefactorFeedback)
 
 namespace Luau
 {
@@ -432,10 +431,7 @@ std::string toFunctionBytecode(BytecodeBuilder& bcb, CompTimeBcFunction& fn)
             LUAU_ASSERT(slot.callTarget.inst < insnsPC.size());
             LUAU_ASSERT(insnsPC[slot.callTarget.inst] != ~0u);
 
-            if (FFlag::LuauCompileRefactorFeedback || FFlag::DebugLuauUserDefinedClasses)
-                slotId = bcb.addCallTargetSlot(insnsPC[slot.callTarget.inst]);
-            else
-                slotId = bcb.addFbSlot_DEPRECATED(LFT_CALLTARGET, insnsPC[slot.callTarget.inst]);
+            slotId = bcb.addCallTargetSlot(insnsPC[slot.callTarget.inst]);
         }
         else if (slot.kind == LFT_CONSTRUCT)
         {

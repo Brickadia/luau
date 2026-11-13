@@ -420,11 +420,6 @@ enum class TableState
     // properties are required, but we don't care about the full shape.  Only
     // used in the old solver.
     Generic,
-
-    // An exact table type is similar to a sealed table, but it does not
-    // participate in width subtyping.  It describes the exact exhaustive shape
-    // of the whole table.
-    Exact,
 };
 
 struct TableIndexer

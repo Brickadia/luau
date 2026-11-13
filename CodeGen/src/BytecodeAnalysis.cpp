@@ -11,6 +11,8 @@
 #include <algorithm>
 #include <array>
 
+LUAU_FASTFLAGVARIABLE(LuauCodegenFastcallAnalysisLimit)
+
 namespace Luau
 {
 namespace CodeGen
@@ -512,11 +514,26 @@ static void applyBuiltinCall(LuauBuiltinFunction bfid, BytecodeTypes& types)
         types.a = LBC_TYPE_BUFFER;
         types.b = LBC_TYPE_NUMBER;
         break;
+    case LBF_BUFFER_READVECTORF32X2:
+    case LBF_BUFFER_READVECTORF32X3:
+    case LBF_BUFFER_READVECTORF32X4:
+        types.result = LBC_TYPE_VECTOR;
+        types.a = LBC_TYPE_BUFFER;
+        types.b = LBC_TYPE_NUMBER;
+        break;
     case LBF_BUFFER_WRITEINTEGER:
         types.result = LBC_TYPE_NIL;
         types.a = LBC_TYPE_BUFFER;
         types.b = LBC_TYPE_NUMBER;
         types.c = LBC_TYPE_INTEGER;
+        break;
+    case LBF_BUFFER_WRITEVECTORF32X2:
+    case LBF_BUFFER_WRITEVECTORF32X3:
+    case LBF_BUFFER_WRITEVECTORF32X4:
+        types.result = LBC_TYPE_NIL;
+        types.a = LBC_TYPE_BUFFER;
+        types.b = LBC_TYPE_NUMBER;
+        types.c = LBC_TYPE_VECTOR;
         break;
     case LBF_TABLE_INSERT:
         types.result = LBC_TYPE_NIL;
@@ -1242,11 +1259,31 @@ void analyzeBytecodeTypes(IrFunction& function, const HostIrHooks& hostHooks)
                 CODEGEN_ASSERT(LUAU_INSN_OP(call) == LOP_CALL);
                 int ra = LUAU_INSN_A(call);
 
-                applyBuiltinCall(LuauBuiltinFunction(bfid), bcType);
+                if (FFlag::LuauCodegenFastcallAnalysisLimit)
+                {
+                    int nparams = LUAU_INSN_B(call) - 1;
 
-                regTags[ra + 1] = bcType.a;
-                regTags[ra + 2] = bcType.b;
-                regTags[ra + 3] = bcType.c;
+                    applyBuiltinCall(LuauBuiltinFunction(bfid), bcType);
+
+                    // Argument registers are not annotated for variadic number of arguments
+                    if (nparams >= 1)
+                        regTags[ra + 1] = bcType.a;
+
+                    if (nparams >= 2)
+                        regTags[ra + 2] = bcType.b;
+
+                    if (nparams >= 3)
+                        regTags[ra + 3] = bcType.c;
+                }
+                else
+                {
+                    applyBuiltinCall(LuauBuiltinFunction(bfid), bcType);
+
+                    regTags[ra + 1] = bcType.a;
+                    regTags[ra + 2] = bcType.b;
+                    regTags[ra + 3] = bcType.c;
+                }
+
                 regTags[ra] = bcType.result;
 
                 refineRegType(bcTypeInfo, ra, i, bcType.result);
@@ -1528,6 +1565,8 @@ void analyzeBytecodeTypes(IrFunction& function, const HostIrHooks& hostHooks)
                 break;
             }
             case LOP_FINCONSTRUCT:
+                break;
+            case LOP_CMPPROTO:
                 break;
             default:
                 CODEGEN_ASSERT(!"Unknown instruction");

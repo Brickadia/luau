@@ -19,7 +19,6 @@
 #include <limits.h>
 #include <math.h>
 
-LUAU_FASTFLAG(LuauCodegenPropagateFallbackTags)
 LUAU_FASTFLAGVARIABLE(LuauCodegenUpdateSafeEnvList)
 LUAU_FASTFLAGVARIABLE(LuauCodegenCmpAnySideEffecting)
 
@@ -316,6 +315,7 @@ IrValueKind getCmdValueKind(IrCmd cmd)
         return IrValueKind::Float;
     case IrCmd::FLOAT_TO_VEC:
     case IrCmd::TAG_VECTOR:
+    case IrCmd::UNTAG_VECTOR:
         return IrValueKind::Tvalue;
     case IrCmd::TRUNCATE_UINT:
         return IrValueKind::Int;
@@ -328,6 +328,7 @@ IrValueKind getCmdValueKind(IrCmd cmd)
         return IrValueKind::Int;
     case IrCmd::CHECK_FASTCALL_RES:
     case IrCmd::INVOKE_FASTPCALL:
+    case IrCmd::INVOKE_NAMECALL:
     case IrCmd::DO_ARITH:
     case IrCmd::DO_LEN:
     case IrCmd::CONSTRUCT:
@@ -422,11 +423,18 @@ IrValueKind getCmdValueKind(IrCmd cmd)
     case IrCmd::BUFFER_WRITEF32:
     case IrCmd::BUFFER_WRITEF64:
     case IrCmd::BUFFER_WRITEI64:
+    case IrCmd::BUFFER_WRITEF32X4:
         return IrValueKind::None;
     case IrCmd::BUFFER_READF32:
         return IrValueKind::Float;
     case IrCmd::BUFFER_READF64:
         return IrValueKind::Double;
+    case IrCmd::BUFFER_READVECTOR:
+        return IrValueKind::Tvalue;
+    case IrCmd::BUFFER_WRITEVECTOR:
+        return IrValueKind::None;
+    case IrCmd::BUFFER_READF32X4:
+        return IrValueKind::Tvalue;
     case IrCmd::JUMP_CMP_PROTOID:
         return IrValueKind::None;
     }
@@ -1974,7 +1982,7 @@ void propagateTagsFromPredecessors(
         return;
 
     // Entry block has an implicit edge as the function start and it has no tag info at that moment
-    if (FFlag::LuauCodegenPropagateFallbackTags && function.entryBlock == blockIdx)
+    if (function.entryBlock == blockIdx)
         return;
 
     BlockIteratorWrapper preds = predecessors(function.cfg, blockIdx);
