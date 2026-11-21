@@ -325,6 +325,8 @@ TEST_CASE("yielded_configuration")
     CHECK(*error == "configuration execution cannot yield");
 }
 
+// With LUA_USE_LONGJMP=1 the VM does not turn C++ exceptions thrown by callbacks into Lua errors.
+#if !LUA_USE_LONGJMP
 TEST_CASE("interrupt_execution" * doctest::timeout(LUAU_TIMEOUT))
 {
     std::string source = R"(
@@ -347,6 +349,7 @@ TEST_CASE("interrupt_execution" * doctest::timeout(LUAU_TIMEOUT))
     REQUIRE(error);
     CHECK(error->find("interrupted") != std::string_view::npos);
 }
+#endif
 
 TEST_CASE("validate_return_value")
 {

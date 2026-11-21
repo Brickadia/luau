@@ -681,3 +681,17 @@ if(TARGET Luau.Bytecode.CLI)
     target_sources(Luau.Bytecode.CLI PRIVATE
         CLI/src/Bytecode.cpp)
 endif()
+
+# Brickadia's own tests, kept out of the upstream lists above so syncs don't conflict (see BRICKADIA_CHANGES.md):
+# tests/Brickadia.<Change>.TypeInfer.test.cpp build into Luau.UnitTest, the other tests/Brickadia.<Change>.test.cpp into Luau.Conformance
+file(GLOB BRICKADIA_TYPEINFER_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/tests/Brickadia.*.TypeInfer.test.cpp)
+file(GLOB BRICKADIA_CONFORMANCE_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/tests/Brickadia.*.test.cpp)
+list(FILTER BRICKADIA_CONFORMANCE_TESTS EXCLUDE REGEX "\\.TypeInfer\\.test\\.cpp$")
+
+if(TARGET Luau.UnitTest AND BRICKADIA_TYPEINFER_TESTS)
+    target_sources(Luau.UnitTest PRIVATE ${BRICKADIA_TYPEINFER_TESTS})
+endif()
+
+if(TARGET Luau.Conformance AND BRICKADIA_CONFORMANCE_TESTS)
+    target_sources(Luau.Conformance PRIVATE ${BRICKADIA_CONFORMANCE_TESTS})
+endif()

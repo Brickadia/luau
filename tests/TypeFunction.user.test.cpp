@@ -3262,6 +3262,8 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_deep_copy_iteration_limit_null_deref")
     );
 }
 
+// With LUA_USE_LONGJMP=1 the VM does not turn C++ exceptions thrown by callbacks into Lua errors.
+#if !LUA_USE_LONGJMP
 TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_areequal_stack_overflow_on_deep_types")
 {
     ScopedFastFlag newSolver{FFlag::DebugLuauForceOldSolver, false};
@@ -3292,6 +3294,7 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_areequal_stack_overflow_on_deep_types")
     LUAU_REQUIRE_ERROR_COUNT(2, result);
     CHECK("'deep_eq' type function errored at runtime: Internal recursion counter limit exceeded in areEqual" == toString(result.errors[0]));
 }
+#endif
 
 TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_setmetatable_wrong_error_tag")
 {
