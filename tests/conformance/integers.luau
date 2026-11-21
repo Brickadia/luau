@@ -693,12 +693,12 @@ assert(tostring(-48i) == "-48")
 assert(tostring(0x8000000000000000i) == "-9223372036854775808")
 assert(tostring(0xFFFFFFFFFFFFFFFFi) == "-1")
 
--- Unary minus can only be used on a literal directly
+-- Unary minus works on any integer and wraps at the minimum
 local intval = 123i
-local ok, err = pcall(function() return -intval end)
-assert(not ok)
-local ok2, err2 = pcall(function() return -(123i) end)
-assert(not ok2)
+assert(-intval == -123i)
+assert(-(123i) == -123i)
+local minval = integer.minsigned
+assert(-minval == integer.minsigned)
 
 assert(is_native_if_supported())
 

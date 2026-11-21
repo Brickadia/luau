@@ -7,6 +7,7 @@
 using namespace Luau;
 
 LUAU_FASTFLAG(DebugLuauForceOldSolver)
+LUAU_FASTFLAG(LuauIntegerType2)
 
 TEST_SUITE_BEGIN("ErrorTests");
 
@@ -73,7 +74,10 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "unary_op_type_function_errors")
             "Operator '-' could not be applied to operand of type string; there is no corresponding overload for __unm", toString(result.errors[0])
         );
 
-        CHECK_EQ("Expected this to be 'number', but got 'string'", toString(result.errors[1]));
+        if (FFlag::LuauIntegerType2)
+            CHECK_EQ("Expected this to be 'integer | number', but got 'string'", toString(result.errors[1]));
+        else
+            CHECK_EQ("Expected this to be 'number', but got 'string'", toString(result.errors[1]));
     }
     else
     {

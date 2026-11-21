@@ -632,7 +632,10 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "typecheck_unary_minus")
         TypeMismatch* tm = get<TypeMismatch>(result.errors[1]);
         REQUIRE(tm);
         CHECK("bar" == toString(tm->givenType));
-        CHECK("number" == toString(tm->wantedType));
+        if (FFlag::LuauIntegerType2)
+            CHECK("integer | number" == toString(tm->wantedType));
+        else
+            CHECK("number" == toString(tm->wantedType));
     }
     else
     {
@@ -1741,12 +1744,11 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "negated_integer_literal_is_a_constant")
     CHECK("integer" == toString(requireType("a")));
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "negating_a_non_literal_integer_is_an_error")
+TEST_CASE_FIXTURE(BuiltinsFixture, "negating_a_non_literal_integer_gives_an_integer")
 {
     DOES_NOT_PASS_OLD_SOLVER_GUARD();
     ScopedFastFlag sff{FFlag::LuauIntegerType2, true};
 
-    // Only the literal is folded. This one reaches the runtime, where integer has no __unm.
     CheckResult result = check(R"(
         --!strict
         local b = 5i
@@ -1754,7 +1756,9 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "negating_a_non_literal_integer_is_an_error")
         local d = -(5i)
     )");
 
-    LUAU_REQUIRE_ERROR_COUNT(4, result);
+    LUAU_REQUIRE_NO_ERRORS(result);
+    CHECK("integer" == toString(requireType("c")));
+    CHECK("integer" == toString(requireType("d")));
 }
 
 TEST_SUITE_END();

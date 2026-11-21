@@ -262,6 +262,9 @@ struct NormalizedType
     /// Returns true if the type is exactly a number. Behaves like Type::isNumber()
     bool isExactlyNumber() const;
 
+    /// Returns true if the type is exactly an integer.
+    bool isExactlyInteger() const;
+
     /// Returns true if the type is a subtype of string(it could be a singleton). Behaves like Type::isString()
     bool isSubtypeOfString() const;
 

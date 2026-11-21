@@ -127,6 +127,27 @@ Contract for callers:
   storage, and destroy it explicitly on the success path after clearing the
   handler.
 
+## Native operators for 64-bit integers
+
+Upstream's `integer` type only implements equality and exposes arithmetic through
+`integer.*` functions. Brickadia adds native wrapping `+`, `-`, `*`, `^`, signed `/`,
+floored `//` and `%`, unary negation, and signed ordering operators. Mixed
+integer/number operations remain type errors. `^` uses wrapping exponentiation by
+squaring and errors on negative exponents.
+
+`/` truncates toward zero; `//` and `%` floor, so `(a // b) * b + a % b == a`.
+Division and modulo by zero raise "division by zero". `INT64_MIN / -1` and
+`INT64_MIN // -1` raise "integer overflow" (matching `integer.div` and
+`integer.idiv`), while `INT64_MIN % -1` is 0 and `-INT64_MIN` wraps to `INT64_MIN`.
+
+The new type solver types them too, only with `LuauIntegerType2`: arithmetic on
+two integers gives `integer`, integer comparisons give `boolean`, and unary
+minus accepts `number | integer` (TypeChecker2 and the builtin type functions).
+The old solver still rejects every integer operator. Upstream's tests that
+expected these operators to be errors (`integers.luau`,
+`negating_a_non_literal_integer_gives_an_integer`, `typecheck_unary_minus`,
+`unary_op_type_function_errors`) expect the operators instead.
+
 ## Testing
 
 Each change's own tests live in `tests/Brickadia.<Change>.test.cpp` (Luau.Conformance) or
