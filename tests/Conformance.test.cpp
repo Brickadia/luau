@@ -66,7 +66,10 @@ LUAU_FASTFLAG(LuauBytecodeSlotAlloc)
 LUAU_FASTFLAG(LuauCodegenFastcallAnalysisLimit)
 LUAU_FASTFLAG(LuauCodegenMarkUsed)
 LUAU_FASTINT(CodegenHeuristicsInstructionLimit)
+LUAU_FASTFLAG(LuauIntegerLibrary)
+LUAU_FASTFLAG(LuauIntegerType2)
 LUAU_FASTFLAG(DebugLuauForceOldSolver)
+LUAU_FASTFLAG(LuauCodegenBufferInteger)
 LUAU_FASTFLAG(DebugLuauBufferVectorLibrary)
 LUAU_FASTFLAG(DebugLuauBufferVectorFastcalls)
 LUAU_FASTFLAG(LuauCodegenA64ReloadLargeConstOffset)
@@ -1389,6 +1392,34 @@ TEST_CASE("Math")
     runConformance("math.luau");
 }
 
+TEST_CASE("Integers")
+{
+    ScopedFastFlag ncgBufferInteger{FFlag::LuauCodegenBufferInteger, true};
+
+    if (FFlag::LuauIntegerType2 && FFlag::LuauIntegerLibrary)
+    {
+        runConformance(
+            "integers.luau",
+            [](lua_State* L)
+            {
+                setupNativeHelpers(L);
+            }
+        );
+
+        if (codegen && luau_codegen_supported())
+        {
+            runConformance(
+                "integers_regspill.luau",
+
+                [](lua_State* L)
+                {
+                    setupNativeHelpers(L);
+                }
+            );
+        }
+    }
+}
+
 TEST_CASE("Tables")
 {
     reallocSizeLimit = 0;
@@ -2185,6 +2216,11 @@ static void populateRTTI(lua_State* L, Luau::TypeId type)
             lua_pushstring(L, "number");
             break;
 
+        case Luau::PrimitiveType::Integer:
+            if (FFlag::LuauIntegerType2)
+                lua_pushstring(L, "integer");
+            break;
+
         case Luau::PrimitiveType::String:
             lua_pushstring(L, "string");
             break;
@@ -2242,6 +2278,7 @@ static void populateRTTI(lua_State* L, Luau::TypeId type)
 
 TEST_CASE("Types")
 {
+    ScopedFastFlag integerType{FFlag::LuauIntegerType2, true};
     ScopedFastFlag luauCoroutineFinallyAnalysis{FFlag::LuauCoroutineFinallyAnalysis, FFlag::LuauCoroutineFinally};
 
     runConformance(
@@ -5015,6 +5052,28 @@ TEST_CASE("Native")
         nullptr,
         &copts
     );
+}
+
+TEST_CASE("NativeIntegerSpills")
+{
+    ScopedFastFlag integerType{FFlag::LuauIntegerType2, true};
+
+    lua_CompileOptions copts = defaultOptions();
+
+    SUBCASE("O0")
+    {
+        copts.optimizationLevel = 0;
+    }
+    SUBCASE("O1")
+    {
+        copts.optimizationLevel = 1;
+    }
+    SUBCASE("O2")
+    {
+        copts.optimizationLevel = 2;
+    }
+
+    runConformance("native_integer_spills.luau", nullptr, nullptr, nullptr, &copts);
 }
 
 TEST_CASE("NativeTypeAnnotations")

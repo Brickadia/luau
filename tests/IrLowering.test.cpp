@@ -16,8 +16,14 @@
 #include <memory>
 #include <string_view>
 
+LUAU_FASTFLAG(LuauIntegerFastcalls)
+LUAU_FASTFLAG(LuauCodegenInteger3)
+LUAU_FASTFLAG(LuauIntegerType2)
+LUAU_FASTFLAG(LuauCodegenBufferInteger)
 LUAU_FASTFLAG(LuauCodegenMarkUsed)
+LUAU_FASTFLAG(LuauIntegerBufferFastcalls)
 LUAU_FASTFLAG(DebugLuauBufferVectorFastcalls)
+LUAU_FASTFLAG(LuauCodegenIntegerCompare)
 LUAU_FASTFLAG(DebugLuauUserDefinedClassesRuntime)
 LUAU_FASTFLAG(LuauCodegenRuntimeFeedback)
 LUAU_FASTFLAG(LuauCodegenUserdataDirect)
@@ -7100,6 +7106,25 @@ _()
     );
 }
 
+TEST_CASE_FIXTURE(LoweringFixture, "FuzzTest26")
+{
+    ScopedFastFlag luauIntegerFastcalls{FFlag::LuauIntegerFastcalls, true};
+    ScopedFastFlag LuauCodegenInteger3{FFlag::LuauCodegenInteger3, true};
+    ScopedFastFlag luauIntegerType{FFlag::LuauIntegerType2, true};
+
+    CHECK(
+        getCodegenAssembly(
+            R"(
+local function foo(...)
+    local _ = ...
+    buffer.readu32(_,_,_,nil,integer.max(0i,_,_,_,_,_,_,_,_,_,_,_,_,_,nil,- _,_,_),_)
+end
+)"
+        )
+            .size() > 0
+    );
+}
+
 TEST_CASE_FIXTURE(LoweringFixture, "FuzzTest27")
 {
     assemblyOptions.compilationOptions.flags = Luau::CodeGen::CodeGen_ColdFunctions;
@@ -7144,6 +7169,27 @@ do
     _ = - - - - - _ + ...
     return _
 end
+)"
+        )
+            .size() > 0
+    );
+}
+
+TEST_CASE_FIXTURE(LoweringFixture, "FuzzTest29")
+{
+    ScopedFastFlag luauIntegerFastcalls{FFlag::LuauIntegerFastcalls, true};
+    ScopedFastFlag LuauCodegenInteger3{FFlag::LuauCodegenInteger3, true};
+    ScopedFastFlag luauIntegerType{FFlag::LuauIntegerType2, true};
+
+    assemblyOptions.compilationOptions.flags = Luau::CodeGen::CodeGen_ColdFunctions;
+
+    CHECK(
+        getCodegenAssembly(
+            R"(
+_ += _ + _
+_ { }
+integer.max(...,_,_,262144i,_,n0,`""{536870912}`)
+integer.extract(integer.extract(integer.extract(...,_,_,_,not _,_),_,_,_),_,_,0i,_)
 )"
         )
             .size() > 0
@@ -8368,6 +8414,243 @@ bb_2:
     );
 }
 
+TEST_CASE_FIXTURE(LoweringFixture, "IntegerMultiargValidate")
+{
+    ScopedFastFlag luauIntegerFastcalls{FFlag::LuauIntegerFastcalls, true};
+    ScopedFastFlag LuauCodegenInteger3{FFlag::LuauCodegenInteger3, true};
+    ScopedFastFlag luauIntegerType{FFlag::LuauIntegerType2, true};
+
+    CHECK_EQ(
+        "\n" + getCodegenAssembly(
+                   R"(
+local function f(a, b)
+    return integer.bxor(a, b, a)
+end
+)"
+               ),
+        R"(
+; function f($arg0, $arg1) line 2
+bb_bytecode_0:
+  implicit CHECK_SAFE_ENV exit(0)
+  CHECK_TAG R0, tinteger, exit(2)
+  CHECK_TAG R1, tinteger, exit(2)
+  %7 = LOAD_INT64 R0
+  %8 = LOAD_INT64 R1
+  %9 = BITXOR_INT64 %7, %8
+  %11 = BITXOR_INT64 %9, %7
+  STORE_INT64 R2, %11
+  STORE_TAG R2, tinteger
+  INTERRUPT 8u
+  RETURN R2, 1i
+)"
+    );
+}
+
+TEST_CASE_FIXTURE(LoweringFixture, "IntegerMultiargValidate2")
+{
+    ScopedFastFlag luauIntegerFastcalls{FFlag::LuauIntegerFastcalls, true};
+    ScopedFastFlag LuauCodegenInteger3{FFlag::LuauCodegenInteger3, true};
+    ScopedFastFlag luauIntegerType{FFlag::LuauIntegerType2, true};
+
+    CHECK_EQ(
+        "\n" + getCodegenAssembly(
+                   R"(
+local function f(a, b)
+    return integer.clamp(a, b, a)
+end
+)"
+               ),
+        R"(
+; function f($arg0, $arg1) line 2
+bb_bytecode_0:
+  implicit CHECK_SAFE_ENV exit(0)
+  CHECK_TAG R0, tinteger, exit(2)
+  CHECK_TAG R1, tinteger, exit(2)
+  %7 = LOAD_INT64 R0
+  %8 = LOAD_INT64 R1
+  CHECK_CMP_INT64 %8, %7, le, exit(2)
+  %11 = SELECT_INT64 %7, %8, %7, %8, lt
+  %12 = SELECT_INT64 %11, %7, %11, %7, gt
+  STORE_INT64 R2, %12
+  STORE_TAG R2, tinteger
+  INTERRUPT 8u
+  RETURN R2, 1i
+)"
+    );
+}
+
+TEST_CASE_FIXTURE(LoweringFixture, "IntegerMultiargValidate3")
+{
+    ScopedFastFlag luauIntegerFastcalls{FFlag::LuauIntegerFastcalls, true};
+    ScopedFastFlag LuauCodegenInteger3{FFlag::LuauCodegenInteger3, true};
+    ScopedFastFlag luauIntegerType{FFlag::LuauIntegerType2, true};
+
+    CHECK_EQ(
+        "\n" + getCodegenAssembly(
+                   R"(
+local function f(a, b)
+    return integer.mul(integer.min(a, b, a), integer.max(a, b, a))
+end
+)"
+               ),
+        R"(
+; function f($arg0, $arg1) line 2
+bb_bytecode_0:
+  implicit CHECK_SAFE_ENV exit(0)
+  CHECK_TAG R0, tinteger, exit(2)
+  CHECK_TAG R1, tinteger, exit(2)
+  %7 = LOAD_INT64 R0
+  %8 = LOAD_INT64 R1
+  %9 = SELECT_INT64 %7, %8, %8, %7, le
+  %11 = SELECT_INT64 %7, %9, %9, %7, le
+  %24 = SELECT_INT64 %7, %8, %8, %7, gt
+  %26 = SELECT_INT64 %7, %24, %24, %7, gt
+  %37 = MUL_INT64 %11, %26
+  STORE_INT64 R2, %37
+  STORE_TAG R2, tinteger
+  INTERRUPT 21u
+  RETURN R2, 1i
+)"
+    );
+}
+
+TEST_CASE_FIXTURE(LoweringFixture, "IntegerFastcallWrongConst")
+{
+    ScopedFastFlag luauIntegerFastcalls{FFlag::LuauIntegerFastcalls, true};
+    ScopedFastFlag LuauCodegenInteger3{FFlag::LuauCodegenInteger3, true};
+
+    // Check that this compiles with no assertions
+    CHECK(
+        getCodegenAssembly(R"(
+local function f(...)
+    integer.add(..., 0.5)
+    integer.sub(..., 0.5)
+    integer.mul(..., 0.5)
+    integer.div(..., 0.5)
+    integer.idiv(..., 0.5)
+    integer.udiv(..., 0.5)
+    integer.rem(..., 0.5)
+    integer.urem(..., 0.5)
+    integer.mod(..., 0.5)
+
+    integer.min(..., 0.5)
+    integer.max(..., 0.5)
+
+    integer.band(..., 0.5)
+    integer.bor(..., 0.5)
+    integer.bxor(..., 0.5)
+    integer.btest(..., 0.5)
+
+    integer.extract(..., 0.5)
+
+    integer.lrotate(..., 0.5)
+    integer.rrotate(..., 0.5)
+    integer.lshift(..., 0.5)
+    integer.rshift(..., 0.5)
+    integer.arshift(..., 0.5)
+
+    integer.lt(..., 0.5)
+    integer.le(..., 0.5)
+    integer.gt(..., 0.5)
+    integer.ge(..., 0.5)
+    integer.ult(..., 0.5)
+    integer.ule(..., 0.5)
+    integer.ugt(..., 0.5)
+    integer.uge(..., 0.5)
+end
+)")
+            .size() > 0
+    );
+}
+
+TEST_CASE_FIXTURE(LoweringFixture, "NumberFastcallWrongConst")
+{
+    ScopedFastFlag LuauCodegenInteger3{FFlag::LuauCodegenInteger3, true};
+    ScopedFastFlag luauIntegerType{FFlag::LuauIntegerType2, true};
+
+    // Check that this compiles with no assertions
+    CHECK(
+        getCodegenAssembly(R"(
+local function f(...)
+    -- 2-arg math
+    math.pow(..., 5i)
+    math.fmod(..., 5i)
+    math.atan2(..., 5i)
+    math.ldexp(..., 5i)
+    math.min(..., 5i)
+    math.max(..., 5i)
+
+    -- bit32 multiarg
+    bit32.band(..., 5i)
+    bit32.bor(..., 5i)
+    bit32.bxor(..., 5i)
+    bit32.btest(..., 5i)
+
+    -- bit32 shift/rotate
+    bit32.lshift(..., 5i)
+    bit32.rshift(..., 5i)
+    bit32.arshift(..., 5i)
+    bit32.lrotate(..., 5i)
+    bit32.rrotate(..., 5i)
+
+    -- bit32 extract (2-arg)
+    bit32.extract(..., 5i)
+
+    -- vector constructor (2-arg)
+    vector.create(..., 5i)
+
+    -- buffer reads (offset is checked as double)
+    buffer.readi8(..., 5i)
+    buffer.readu8(..., 5i)
+    buffer.readi16(..., 5i)
+    buffer.readu16(..., 5i)
+    buffer.readi32(..., 5i)
+    buffer.readu32(..., 5i)
+    buffer.readf32(..., 5i)
+    buffer.readf64(..., 5i)
+end
+)")
+            .size() > 0
+    );
+}
+
+TEST_CASE_FIXTURE(LoweringFixture, "IntegerFastcallConstant")
+{
+    ScopedFastFlag luauIntegerFastcalls{FFlag::LuauIntegerFastcalls, true};
+    ScopedFastFlag LuauCodegenInteger3{FFlag::LuauCodegenInteger3, true};
+    ScopedFastFlag luauIntegerType{FFlag::LuauIntegerType2, true};
+
+    CHECK_EQ(
+        "\n" + getCodegenAssembly(
+                   R"(
+local function foo(x: integer)
+    return integer.band(x, 5i)
+end
+)",
+                   true,
+                   1,
+                   2
+               ),
+        R"(
+; function foo($arg0) line 2
+; R0: integer [argument]
+bb_0:
+  CHECK_TAG R0, tinteger, exit(entry)
+  JUMP bb_2
+bb_2:
+  JUMP bb_bytecode_1
+bb_bytecode_1:
+  implicit CHECK_SAFE_ENV exit(0)
+  %7 = LOAD_INT64 R0
+  %8 = BITAND_INT64 %7, 5i
+  STORE_INT64 R1, %8
+  STORE_TAG R1, tinteger
+  INTERRUPT 7u
+  RETURN R1, 1i
+)"
+    );
+}
+
 TEST_CASE_FIXTURE(LoweringFixture, "BufferWriteChecksExtraArgs")
 {
     CHECK_EQ(
@@ -8415,6 +8698,115 @@ bb_bytecode_1:
 )"
     );
 }
+TEST_CASE_FIXTURE(LoweringFixture, "IntegerCompare")
+{
+    ScopedFastFlag luauIntegerFastcalls{FFlag::LuauIntegerFastcalls, true};
+    ScopedFastFlag LuauCodegenInteger3{FFlag::LuauCodegenInteger3, true};
+    ScopedFastFlag luauIntegerType{FFlag::LuauIntegerType2, true};
+    ScopedFastFlag luauCodegenIntegerCompare{FFlag::LuauCodegenIntegerCompare, true};
+
+    CHECK_EQ(
+        "\n" + getCodegenAssembly(
+                   R"(
+local function foo(x: integer, y: integer)
+    if x == y then
+        return 1
+    end
+    return 2
+end
+)",
+                   true,
+                   1,
+                   2
+               ),
+        R"(
+; function foo($arg0, $arg1) line 2
+; R0: integer [argument]
+; R1: integer [argument]
+bb_0:
+  CHECK_TAG R0, tinteger, exit(entry)
+  CHECK_TAG R1, tinteger, exit(entry)
+  JUMP bb_3
+bb_3:
+  JUMP bb_bytecode_1
+bb_bytecode_1:
+  %10 = LOAD_INT64 R0
+  %11 = LOAD_INT64 R1
+  JUMP_CMP_INT64 %10, %11, not_eq, bb_bytecode_2, bb_4
+bb_4:
+  STORE_DOUBLE R2, 1
+  STORE_TAG R2, tnumber
+  INTERRUPT 3u
+  RETURN R2, 1i
+bb_bytecode_2:
+  STORE_DOUBLE R2, 2
+  STORE_TAG R2, tnumber
+  INTERRUPT 5u
+  RETURN R2, 1i
+)"
+    );
+}
+
+TEST_CASE_FIXTURE(LoweringFixture, "IntegerCompareConstLhs")
+{
+    ScopedFastFlag luauIntegerFastcalls{FFlag::LuauIntegerFastcalls, true};
+    ScopedFastFlag LuauCodegenInteger3{FFlag::LuauCodegenInteger3, true};
+    ScopedFastFlag luauIntegerType{FFlag::LuauIntegerType2, true};
+    ScopedFastFlag luauCodegenBufferInteger{FFlag::LuauCodegenBufferInteger, true};
+    ScopedFastFlag luauIntegerBufferFastcalls{FFlag::LuauIntegerBufferFastcalls, true};
+    ScopedFastFlag luauCodegenIntegerCompare{FFlag::LuauCodegenIntegerCompare, true};
+
+    CHECK_EQ(
+        "\n" + getCodegenAssembly(
+                   R"(
+local function foo(b: buffer, x: integer)
+    -- bytecode compiler is unlikely to constant-fold this
+    buffer.writeinteger(b, 0, 2i)
+    local lhs = buffer.readinteger(b, 0)
+
+    if lhs == x then
+        return 1
+    end
+    return 2
+end
+)",
+                   true,
+                   1,
+                   2
+               ),
+        R"(
+; function foo($arg0, $arg1) line 2
+; R0: buffer [argument]
+; R1: integer [argument]
+; R2: integer from 8 to 21
+bb_0:
+  CHECK_TAG R0, tbuffer, exit(entry)
+  CHECK_TAG R1, tinteger, exit(entry)
+  JUMP bb_3
+bb_3:
+  JUMP bb_bytecode_1
+bb_bytecode_1:
+  implicit CHECK_SAFE_ENV exit(0)
+  %17 = LOAD_POINTER R0
+  CHECK_BUFFER_LEN %17, 0i, 0i, 8i, undef, bb_exit_8
+   ; exit sync: R5, R4, {}
+  BUFFER_WRITEI64 %17, 0i, 2i, tbuffer
+  %39 = LOAD_INT64 R1
+  JUMP_CMP_INT64 2i, %39, not_eq, bb_bytecode_2, bb_6
+bb_6:
+  STORE_DOUBLE R3, 1
+  STORE_TAG R3, tnumber
+  INTERRUPT 18u
+  RETURN R3, 1i
+bb_bytecode_2:
+  STORE_DOUBLE R3, 2
+  STORE_TAG R3, tnumber
+  INTERRUPT 20u
+  RETURN R3, 1i
+)"
+    );
+}
+
 TEST_CASE_FIXTURE(LoweringFixture, "OptionalUserdataTypeRemapping")
 {
     // This test requires runtime component to be present

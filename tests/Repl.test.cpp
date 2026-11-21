@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+LUAU_FASTFLAG(LuauIntegerType2)
 
 struct Completion
 {

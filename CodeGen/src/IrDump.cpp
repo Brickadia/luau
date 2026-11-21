@@ -88,6 +88,8 @@ const char* getTagName(uint8_t tag)
         return "tclass";
     case LUA_TOBJECT:
         return "tobject";
+    case LUA_TINTEGER:
+        return "tinteger";
     default:
         CODEGEN_ASSERT(!"Unknown type tag");
         LUAU_UNREACHABLE();
@@ -108,6 +110,8 @@ const char* getCmdName(IrCmd cmd)
         return "LOAD_DOUBLE";
     case IrCmd::LOAD_INT:
         return "LOAD_INT";
+    case IrCmd::LOAD_INT64:
+        return "LOAD_INT64";
     case IrCmd::LOAD_FLOAT:
         return "LOAD_FLOAT";
     case IrCmd::LOAD_TVALUE:
@@ -132,6 +136,8 @@ const char* getCmdName(IrCmd cmd)
         return "STORE_DOUBLE";
     case IrCmd::STORE_INT:
         return "STORE_INT";
+    case IrCmd::STORE_INT64:
+        return "STORE_INT64";
     case IrCmd::STORE_VECTOR:
         return "STORE_VECTOR";
     case IrCmd::STORE_TVALUE:
@@ -624,6 +630,9 @@ uint8_t parseTagName(std::string_view name)
     if (name == "tnumber")
         return LUA_TNUMBER;
 
+    if (name == "tinteger")
+        return LUA_TINTEGER;
+
     if (name == "tvector")
         return LUA_TVECTOR;
 
@@ -706,6 +715,10 @@ static void appendVmConstant(std::string& result, Proto* proto, int index)
             append(result, "nan");
         else
             append(result, "%.17g", constant.value.n);
+    }
+    else if (constant.tt == LUA_TINTEGER)
+    {
+        append(result, "%lldi", (long long)constant.value.l);
     }
     else if (constant.tt == LUA_TSTRING)
     {
@@ -859,6 +872,8 @@ const char* getBytecodeTypeName(uint8_t type, const char* const* userdataTypes)
         return "boolean";
     case LBC_TYPE_NUMBER:
         return "number";
+    case LBC_TYPE_INTEGER:
+        return "integer";
     case LBC_TYPE_STRING:
         return "string";
     case LBC_TYPE_TABLE:

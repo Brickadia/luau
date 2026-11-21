@@ -369,6 +369,13 @@ void IrLoweringA64::lowerInst(IrInst& inst, uint32_t index, const IrBlock& next)
         build.ldr(inst.regA64, addr);
         break;
     }
+    case IrCmd::LOAD_INT64:
+    {
+        inst.regA64 = regs.allocReg(KindA64::x, index);
+        AddressA64 addr = tempAddr(OP_A(inst), offsetof(TValue, value.l));
+        build.ldr(inst.regA64, addr);
+        break;
+    }
     case IrCmd::LOAD_FLOAT:
     {
         inst.regA64 = regs.allocReg(KindA64::s, index);
@@ -546,6 +553,20 @@ void IrLoweringA64::lowerInst(IrInst& inst, uint32_t index, const IrBlock& next)
         }
         break;
     }
+    case IrCmd::STORE_INT64:
+    {
+        AddressA64 addr = tempAddr(OP_A(inst), offsetof(TValue, value));
+        if (OP_B(inst).kind == IrOpKind::Constant && int64Op(OP_B(inst)) == 0)
+        {
+            build.str(xzr, addr);
+        }
+        else
+        {
+            RegisterA64 temp = tempInt64(OP_B(inst));
+            build.str(temp, addr);
+        }
+        break;
+    }
     case IrCmd::STORE_VECTOR:
     {
         RegisterA64 temp1 = tempFloat(OP_B(inst));
@@ -599,6 +620,11 @@ void IrLoweringA64::lowerInst(IrInst& inst, uint32_t index, const IrBlock& next)
         else if (tagOp(OP_B(inst)) == LUA_TNUMBER)
         {
             RegisterA64 temp = tempDouble(OP_C(inst));
+            build.str(temp, addr);
+        }
+        else if (tagOp(OP_B(inst)) == LUA_TINTEGER)
+        {
+            RegisterA64 temp = tempInt64(OP_C(inst));
             build.str(temp, addr);
         }
         else if (isGCO(tagOp(OP_B(inst))))
@@ -1568,6 +1594,14 @@ void IrLoweringA64::lowerInst(IrInst& inst, uint32_t index, const IrBlock& next)
 
             build.fcmp(temp1, temp2);
             build.cset(inst.regA64, getConditionFP(cond));
+        }
+        else if (tagOp(OP_B(inst)) == LUA_TINTEGER)
+        {
+            RegisterA64 temp1 = tempInt64(OP_C(inst));
+            RegisterA64 temp2 = tempInt64(OP_D(inst));
+
+            build.cmp(temp1, temp2);
+            build.cset(inst.regA64, getConditionInt64(cond));
         }
         else
         {

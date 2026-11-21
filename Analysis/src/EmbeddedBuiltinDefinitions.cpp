@@ -5,6 +5,8 @@
 #include <string>
 #include <string_view>
 
+LUAU_FASTFLAG(LuauIntegerLibrary)
+LUAU_FASTFLAG(LuauIntegerType2)
 LUAU_FASTFLAG(LuauAllowGlobalDeclarationToBeCalledClass)
 LUAU_FASTFLAG(DebugLuauBufferVectorLibrary)
 LUAU_FASTFLAG(DebugLuauUserDefinedClasses)
@@ -403,6 +405,11 @@ declare buffer: {
     readf64: @checked (b: buffer, offset: number) -> number,
 )BUILTIN_SRC";
 
+static constexpr const char* kBuiltinDefinitionBufferIntegerSrc = R"BUILTIN_SRC(
+    readinteger: @checked (b: buffer, offset: number) -> integer,
+    writeinteger: @checked (b: buffer, offset: number, value: integer) -> (),
+)BUILTIN_SRC";
+
 static constexpr const char* kBuiltinDefinitionBufferVectorSrc = R"BUILTIN_SRC(
     readvectorf32x2: @checked (b: buffer, offset: number) -> vector,
     readvectorf32x3: @checked (b: buffer, offset: number) -> vector,
@@ -458,6 +465,54 @@ declare vector: {
 
 )BUILTIN_SRC";
 
+static const char* const kBuiltinDefinitionIntegerSrc = R"BUILTIN_SRC(
+
+declare integer: {
+    create: @checked (x: number) -> integer,
+    tonumber: @checked (x: integer) -> number,
+    neg: @checked (value: integer) -> integer,
+    add: @checked (x: integer, y: integer) -> integer,
+    sub: @checked (x: integer, y: integer) -> integer,
+    mul: @checked (x: integer, y: integer) -> integer,
+    div: @checked (x: integer, y: integer) -> integer,
+    rem: @checked (x: integer, y: integer) -> integer,
+    idiv: @checked (x: integer, y: integer) -> integer,
+    mod: @checked (x: integer, y: integer) -> integer,
+    udiv: @checked (x: integer, y: integer) -> integer,
+    urem: @checked (x: integer, y: integer) -> integer,
+    min: @checked (integer, ...integer) -> integer,
+    max: @checked (integer, ...integer) -> integer,
+    band: @checked (...integer) -> integer,
+    bor: @checked (...integer) -> integer,
+    bnot: @checked (x: integer) -> integer,
+    bxor: @checked (...integer) -> integer,
+    lt: @checked (x: integer, y: integer) -> boolean,
+    le: @checked (x: integer, y: integer) -> boolean,
+    ult: @checked (x: integer, y: integer) -> boolean,
+    ule: @checked (x: integer, y: integer) -> boolean,
+    gt: @checked (x: integer, y: integer) -> boolean,
+    ge: @checked (x: integer, y: integer) -> boolean,
+    ugt: @checked (x: integer, y: integer) -> boolean,
+    uge: @checked (x: integer, y: integer) -> boolean,
+    lshift: @checked (x: integer, numBitPositions: integer) -> integer,
+    rshift: @checked (x: integer, numBitPositions: integer) -> integer,
+    arshift: @checked (x: integer, numBitPositions: integer) -> integer,
+    lrotate: @checked (x: integer, numBitPositions: integer) -> integer,
+    rrotate: @checked (x: integer, numBitPositions: integer) -> integer,
+    extract: @checked (value: integer, bitPosition: integer, numBits: integer?) -> integer,
+    replace: @checked (value: integer, replacement: integer, bitPosition: integer, numBits: integer?) -> integer,
+    clamp: @checked (value: integer, min: integer, max: integer) -> integer,
+    btest: @checked (...integer) -> boolean,
+    countrz: @checked (x: integer) -> integer,
+    countlz: @checked (x: integer) -> integer,
+    bswap: @checked (x: integer) -> integer,
+    fromstring: @checked (str: string, base: number?) -> integer,
+    minsigned: integer,
+    maxsigned: integer
+}
+
+)BUILTIN_SRC";
+
 static const char* kBuiltinDefinitionClassSrc = R"CLASS_SRC(
 declare class: {
     isinstance: @checked (o: unknown, c: class) -> boolean,
@@ -490,9 +545,14 @@ std::string getBuiltinDefinitionSource()
         result += kBuiltinDefinitionBufferSrcPrefix;
         if (FFlag::DebugLuauBufferVectorLibrary)
             result += kBuiltinDefinitionBufferVectorSrc;
+        if (FFlag::LuauIntegerType2 && FFlag::LuauIntegerLibrary)
+            result += kBuiltinDefinitionBufferIntegerSrc;
         result += kBuiltinDefinitionBufferSrcSuffix;
 
         result += kBuiltinDefinitionVectorSrc;
+
+        if (FFlag::LuauIntegerType2 && FFlag::LuauIntegerLibrary)
+            result += kBuiltinDefinitionIntegerSrc;
 
         if (FFlag::DebugLuauUserDefinedClasses && FFlag::LuauAllowGlobalDeclarationToBeCalledClass)
         {
@@ -505,6 +565,60 @@ std::string getBuiltinDefinitionSource()
 
 // TODO: split into separate tagged unions when the new solver can appropriately handle that.
 static constexpr const char* kBuiltinDefinitionTypeMethodSrc = R"BUILTIN_SRC(
+
+export type type = {
+    tag: "nil" | "unknown" | "never" | "any" | "boolean" | "number" | "integer" | "string" | "buffer" | "thread" |
+         "singleton" | "negation" | "union" | "intersection" | "table" | "function" | "extern" | "generic",
+
+    is: (self: type, arg: string) -> boolean,
+    issubtypeof: (self: type, arg: type) -> boolean,
+
+    -- for singleton type
+    value: (self: type) -> (string | boolean | nil),
+
+    -- for negation type
+    inner: (self: type) -> type,
+
+    -- for union and intersection types
+    components: (self: type) -> {type},
+
+    -- for table type
+    setproperty: (self: type, key: type, value: type?) -> (),
+    setreadproperty: (self: type, key: type, value: type?) -> (),
+    setwriteproperty: (self: type, key: type, value: type?) -> (),
+    readproperty: (self: type, key: type) -> type?,
+    writeproperty: (self: type, key: type) -> type?,
+    properties: (self: type) -> { [type]: { read: type?, write: type? } },
+    setindexer: (self: type, index: type, result: type) -> (),
+    setreadindexer: (self: type, index: type, result: type) -> (),
+    setwriteindexer: (self: type, index: type, result: type) -> (),
+    indexer: (self: type) -> { index: type, readresult: type, writeresult: type }?,
+    readindexer: (self: type) -> { index: type, result: type }?,
+    writeindexer: (self: type) -> { index: type, result: type }?,
+    setmetatable: (self: type, arg: type) -> (),
+    metatable: (self: type) -> type?,
+
+    -- for function type
+    setparameters: (self: type, head: {type}?, tail: type?) -> (),
+    parameters: (self: type) -> { head: {type}?, tail: type? },
+    setreturns: (self: type, head: {type}?, tail: type? ) -> (),
+    returns: (self: type) -> { head: {type}?, tail: type? },
+    setgenerics: (self: type, {type}?) -> (),
+    generics: (self: type) -> {type},
+
+    -- for class type
+    -- 'properties', 'metatable', 'indexer', 'readindexer' and 'writeindexer' are shared with table type
+    readparent: (self: type) -> type?,
+    writeparent: (self: type) -> type?,
+
+    -- for generic type
+    name: (self: type) -> string?,
+    ispack: (self: type) -> boolean,
+}
+
+)BUILTIN_SRC";
+
+static constexpr const char* kBuiltinDefinitionTypeMethodSrc_NOINTEGER = R"BUILTIN_SRC(
 
 export type type = {
     tag: "nil" | "unknown" | "never" | "any" | "boolean" | "number" | "string" | "buffer" | "thread" |
@@ -569,6 +683,31 @@ declare types: {
     string: type,
     thread: type,
     buffer: type,
+    integer: type,
+
+    singleton: @checked (arg: string | boolean | nil) -> type,
+    optional: @checked (arg: type) -> type,
+    generic: @checked (name: string, ispack: boolean?) -> type,
+    negationof: @checked (arg: type) -> type,
+    unionof: @checked (...type) -> type,
+    intersectionof: @checked (...type) -> type,
+    newtable: @checked (props: {[type]: type} | {[type]: { read: type?, write: type? } }?, indexer: { index: type, readresult: type, writeresult: type }?, metatable: type?) -> type,
+    newfunction: @checked (parameters: { head: {type}?, tail: type? }?, returns: { head: {type}?, tail: type? }?, generics: {type}?) -> type,
+    copy: @checked (arg: type) -> type,
+}
+)BUILTIN_SRC";
+
+static constexpr const char* kBuiltinDefinitionTypesLibSrc_NOINTEGER = R"BUILTIN_SRC(
+
+declare types: {
+    unknown: type,
+    never: type,
+    any: type,
+    boolean: type,
+    number: type,
+    string: type,
+    thread: type,
+    buffer: type,
 
     singleton: @checked (arg: string | boolean | nil) -> type,
     optional: @checked (arg: type) -> type,
@@ -594,8 +733,15 @@ std::string getTypeFunctionDefinitionSource()
     {
         std::string result;
 
-        result += kBuiltinDefinitionTypeMethodSrc;
-        result += kBuiltinDefinitionTypesLibSrc;
+        if (FFlag::LuauIntegerType2)
+            result += kBuiltinDefinitionTypeMethodSrc;
+        else
+            result += kBuiltinDefinitionTypeMethodSrc_NOINTEGER;
+
+        if (FFlag::LuauIntegerType2)
+            result += kBuiltinDefinitionTypesLibSrc;
+        else
+            result += kBuiltinDefinitionTypesLibSrc_NOINTEGER;
 
         return result;
     }
@@ -815,6 +961,11 @@ static void buildBufferDefinitions(TypeDefBuilder& builder)
         table.registerProp("writevectorf32x2", "@checked (b: buffer, offset: number, value: vector) -> ()");
         table.registerProp("writevectorf32x3", "@checked (b: buffer, offset: number, value: vector) -> ()");
     }
+    if (FFlag::LuauIntegerType2 && FFlag::LuauIntegerLibrary)
+    {
+        table.registerProp("readinteger", "@checked (b: buffer, offset: number) -> integer");
+        table.registerProp("writeinteger", "@checked (b: buffer, offset: number, value: integer) -> ()");
+    }
     table.registerProp("writei8", "@checked (b: buffer, offset: number, value: number) -> ()");
     table.registerProp("writeu8", "@checked (b: buffer, offset: number, value: number) -> ()");
     table.registerProp("writei16", "@checked (b: buffer, offset: number, value: number) -> ()");
@@ -860,6 +1011,55 @@ end
     table.registerProp("one", "vector");
 }
 
+static void buildIntegerDefinitions(TypeDefBuilder& builder)
+{
+    if (FFlag::LuauIntegerType2 && FFlag::LuauIntegerLibrary)
+    {
+        TableLikeDefinition table = builder.declareTablePartial("integer");
+        table.registerProp("create", "@checked (x: number) -> integer");
+        table.registerProp("tonumber", "@checked (x: integer) -> number");
+        table.registerProp("neg", "@checked (value: integer) -> integer");
+        table.registerProp("add", "@checked (x: integer, y: integer) -> integer");
+        table.registerProp("sub", "@checked (x: integer, y: integer) -> integer");
+        table.registerProp("mul", "@checked (x: integer, y: integer) -> integer");
+        table.registerProp("div", "@checked (x: integer, y: integer) -> integer");
+        table.registerProp("rem", "@checked (x: integer, y: integer) -> integer");
+        table.registerProp("idiv", "@checked (x: integer, y: integer) -> integer");
+        table.registerProp("mod", "@checked (x: integer, y: integer) -> integer");
+        table.registerProp("udiv", "@checked (x: integer, y: integer) -> integer");
+        table.registerProp("urem", "@checked (x: integer, y: integer) -> integer");
+        table.registerProp("min", "@checked (integer, ...integer) -> integer");
+        table.registerProp("max", "@checked (integer, ...integer) -> integer");
+        table.registerProp("band", "@checked (...integer) -> integer");
+        table.registerProp("bor", "@checked (...integer) -> integer");
+        table.registerProp("bnot", "@checked (x: integer) -> integer");
+        table.registerProp("bxor", "@checked (...integer) -> integer");
+        table.registerProp("lt", "@checked (x: integer, y: integer) -> boolean");
+        table.registerProp("le", "@checked (x: integer, y: integer) -> boolean");
+        table.registerProp("ult", "@checked (x: integer, y: integer) -> boolean");
+        table.registerProp("ule", "@checked (x: integer, y: integer) -> boolean");
+        table.registerProp("gt", "@checked (x: integer, y: integer) -> boolean");
+        table.registerProp("ge", "@checked (x: integer, y: integer) -> boolean");
+        table.registerProp("ugt", "@checked (x: integer, y: integer) -> boolean");
+        table.registerProp("uge", "@checked (x: integer, y: integer) -> boolean");
+        table.registerProp("lshift", "@checked (x: integer, numBitPositions: integer) -> integer");
+        table.registerProp("rshift", "@checked (x: integer, numBitPositions: integer) -> integer");
+        table.registerProp("arshift", "@checked (x: integer, numBitPositions: integer) -> integer");
+        table.registerProp("lrotate", "@checked (x: integer, numBitPositions: integer) -> integer");
+        table.registerProp("rrotate", "@checked (x: integer, numBitPositions: integer) -> integer");
+        table.registerProp("extract", "@checked (value: integer, bitPosition: integer, numBits: integer?) -> integer");
+        table.registerProp("replace", "@checked (value: integer, replacement: integer, bitPosition: integer, numBits: integer?) -> integer");
+        table.registerProp("clamp", "@checked (value: integer, min: integer, max: integer) -> integer");
+        table.registerProp("btest", "@checked (...integer) -> boolean");
+        table.registerProp("countrz", "@checked (x: integer) -> integer");
+        table.registerProp("countlz", "@checked (x: integer) -> integer");
+        table.registerProp("bswap", "@checked (x: integer) -> integer");
+        table.registerProp("fromstring", "@checked (str: string, base: number?) -> integer");
+        table.registerProp("minsigned", "integer");
+        table.registerProp("maxsigned", "integer");
+    }
+}
+
 static void buildClassDefinitions(TypeDefBuilder& builder)
 {
     if (FFlag::DebugLuauUserDefinedClasses && FFlag::LuauAllowGlobalDeclarationToBeCalledClass)
@@ -883,6 +1083,7 @@ std::string buildBuiltinTypeDefinitions()
     buildUtf8Definitions(builder);
     buildBufferDefinitions(builder);
     buildVectorDefinitions(builder);
+    buildIntegerDefinitions(builder);
     buildClassDefinitions(builder);
     return builder.str();
 }
@@ -890,11 +1091,18 @@ std::string buildBuiltinTypeDefinitions()
 static void buildTypeMethodDefinitions(TypeDefBuilder& builder)
 {
     TableLikeDefinition table = builder.declareTypePartial("type", true);
-    table.registerProp(
-        "tag",
-        "\"nil\" | \"unknown\" | \"never\" | \"any\" | \"boolean\" | \"number\" | \"string\" | \"buffer\" | \"thread\" | \"singleton\" | "
-        "\"negation\" | \"union\" | \"intersection\" | \"table\" | \"function\" | \"extern\" | \"generic\""
-    );
+    if (FFlag::LuauIntegerType2)
+        table.registerProp(
+            "tag",
+            "\"nil\" | \"unknown\" | \"never\" | \"any\" | \"boolean\" | \"number\" | \"integer\" | \"string\" | \"buffer\" | \"thread\" | "
+            "\"singleton\" | \"negation\" | \"union\" | \"intersection\" | \"table\" | \"function\" | \"extern\" | \"generic\""
+        );
+    else
+        table.registerProp(
+            "tag",
+            "\"nil\" | \"unknown\" | \"never\" | \"any\" | \"boolean\" | \"number\" | \"string\" | \"buffer\" | \"thread\" | \"singleton\" | "
+            "\"negation\" | \"union\" | \"intersection\" | \"table\" | \"function\" | \"extern\" | \"generic\""
+        );
     table.registerProp("is", "(self: type, arg: string) -> boolean");
     table.registerProp("issubtypeof", "(self: type, arg: type) -> boolean");
     table.registerProp("value", "(self: type) -> (string | boolean | nil)");
@@ -937,6 +1145,8 @@ static void buildTypesLibraryDefinitions(TypeDefBuilder& builder)
     table.registerProp("string", "type");
     table.registerProp("thread", "type");
     table.registerProp("buffer", "type");
+    if (FFlag::LuauIntegerType2)
+        table.registerProp("integer", "type");
     table.registerProp("singleton", "@checked (arg: string | boolean | nil) -> type");
     table.registerProp("optional", "@checked (arg: type) -> type");
     table.registerProp("generic", "@checked (name: string, ispack: boolean?) -> type");

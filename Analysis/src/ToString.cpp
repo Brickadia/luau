@@ -17,7 +17,7 @@
 #include <algorithm>
 #include <string>
 
-
+LUAU_FASTFLAG(LuauIntegerType2)
 LUAU_FASTFLAGVARIABLE(LuauBetterInferredGenericNames)
 
 /*
@@ -653,6 +653,13 @@ struct TypeStringifier
         case PrimitiveType::Table:
             state.emit("table");
             return;
+        case PrimitiveType::Integer:
+            if (FFlag::LuauIntegerType2)
+            {
+                state.emit("integer");
+                return;
+            }
+            [[fallthrough]];
         default:
             LUAU_ASSERT(!"Unknown primitive type");
             throw InternalCompilerError("Unknown primitive type " + std::to_string(ptv.type));

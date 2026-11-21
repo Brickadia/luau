@@ -159,6 +159,9 @@ private:
             case PrimitiveType::Number:
                 target = typeFunctionRuntime->typeArena.allocate(TypeFunctionPrimitiveType(TypeFunctionPrimitiveType::Number));
                 break;
+            case PrimitiveType::Integer:
+                target = typeFunctionRuntime->typeArena.allocate(TypeFunctionPrimitiveType(TypeFunctionPrimitiveType::Integer));
+                break;
             case PrimitiveType::String:
                 target = typeFunctionRuntime->typeArena.allocate(TypeFunctionPrimitiveType(TypeFunctionPrimitiveType::String));
                 break;
@@ -690,6 +693,9 @@ private:
                 break;
             case TypeFunctionPrimitiveType::Type::Number:
                 target = state->ctx->builtins->numberType;
+                break;
+            case TypeFunctionPrimitiveType::Type::Integer:
+                target = state->ctx->builtins->integerType;
                 break;
             case TypeFunctionPrimitiveType::Type::String:
                 target = state->ctx->builtins->stringType;

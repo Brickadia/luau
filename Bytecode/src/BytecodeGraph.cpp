@@ -157,6 +157,15 @@ std::optional<CompTimeBcFunction> fromFunctionBytecode(std::string bytecode, std
             break;
         }
 
+        case LBC_CONSTANT_INTEGER:
+        {
+            fn.constants[i].kind = BcVmConstKind::Integer;
+            bool isNegative = read<uint8_t>(data, offset);
+            uint64_t magnitude = readVarInt64(data, offset);
+            fn.constants[i].valueInteger = isNegative ? (int64_t)(~magnitude + 1) : (int64_t)magnitude;
+            break;
+        }
+
         case LBC_CONSTANT_CLASS_SHAPE:
         {
             LUAU_ASSERT(FFlag::DebugLuauUserDefinedClasses);
@@ -387,6 +396,10 @@ std::string toFunctionBytecode(BytecodeBuilder& bcb, CompTimeBcFunction& fn)
 
         case BcVmConstKind::Closure:
             consts.push_back(bcb.addConstantClosure(c.valueClosure));
+            break;
+
+        case BcVmConstKind::Integer:
+            consts.push_back(bcb.addConstantInteger(c.valueInteger));
             break;
 
         case BcVmConstKind::ClassShape:

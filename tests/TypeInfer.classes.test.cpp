@@ -11,6 +11,7 @@ using namespace Luau;
 
 LUAU_FASTFLAG(DebugLuauUserDefinedClasses)
 LUAU_FASTFLAG(LuauAllowGlobalDeclarationToBeCalledClass);
+LUAU_FASTFLAG(LuauIntegerType2)
 LUAU_FASTFLAG(LuauExportValueSyntax)
 LUAU_FASTFLAG(LuauExportValueTypecheck)
 
@@ -299,6 +300,7 @@ local p = Point
 
 TEST_CASE_FIXTURE(ClassesFixture, "isinstance_refines_unknown_value")
 {
+    ScopedFastFlag sff{FFlag::LuauIntegerType2, true};
     CheckResult result = check(R"(
 class Point
     public x
@@ -316,7 +318,7 @@ end
     LUAU_REQUIRE_NO_ERRORS(result);
     CHECK_EQ("Point", toString(requireTypeAtPosition({7, 18})));
     CHECK_EQ(
-        "((userdata & ~Point) | boolean | buffer | function | number | string | table | thread)?", toString(requireTypeAtPosition({9, 18}))
+        "((userdata & ~Point) | boolean | buffer | function | integer | number | string | table | thread)?", toString(requireTypeAtPosition({9, 18}))
     );
 }
 

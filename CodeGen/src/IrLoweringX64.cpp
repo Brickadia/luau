@@ -98,6 +98,16 @@ void IrLoweringX64::lowerInst(IrInst& inst, uint32_t index, const IrBlock& next)
 
         build.mov(inst.regX64, luauRegValueInt(vmRegOp(OP_A(inst))));
         break;
+    case IrCmd::LOAD_INT64:
+        inst.regX64 = regs.allocReg(SizeX64::qword, index);
+
+        if (OP_A(inst).kind == IrOpKind::VmReg)
+            build.mov(inst.regX64, luauRegValueInt64(vmRegOp(OP_A(inst))));
+        else if (OP_A(inst).kind == IrOpKind::VmConst)
+            build.mov(inst.regX64, luauConstantValue(vmConstOp(OP_A(inst))));
+        else
+            CODEGEN_ASSERT(!"Unsupported instruction form");
+        break;
     case IrCmd::LOAD_FLOAT:
         inst.regX64 = regs.allocReg(SizeX64::xmmword, index);
 
@@ -277,6 +287,29 @@ void IrLoweringX64::lowerInst(IrInst& inst, uint32_t index, const IrBlock& next)
         else
             CODEGEN_ASSERT(!"Unsupported instruction form");
         break;
+    case IrCmd::STORE_INT64:
+        if (OP_B(inst).kind == IrOpKind::Constant)
+        {
+            int64_t value = int64Op(OP_B(inst));
+
+            // x64 mov r/m64, imm32 sign-extends
+            // otherwise we use register for values outside that range
+            if (value >= INT32_MIN && value <= INT32_MAX)
+            {
+                build.mov(luauRegValueInt64(vmRegOp(OP_A(inst))), int32_t(value));
+            }
+            else
+            {
+                ScopedRegX64 tmp{regs, SizeX64::qword};
+                build.mov64(tmp.reg, value);
+                build.mov(luauRegValueInt64(vmRegOp(OP_A(inst))), tmp.reg);
+            }
+        }
+        else if (OP_B(inst).kind == IrOpKind::Inst)
+            build.mov(luauRegValueInt64(vmRegOp(OP_A(inst))), regOp(OP_B(inst)));
+        else
+            CODEGEN_ASSERT(!"Unsupported instruction form");
+        break;
     case IrCmd::STORE_VECTOR:
         storeFloat(luauRegValueVector(vmRegOp(OP_A(inst)), 0), OP_B(inst));
         storeFloat(luauRegValueVector(vmRegOp(OP_A(inst)), 1), OP_C(inst));
@@ -326,6 +359,32 @@ void IrLoweringX64::lowerInst(IrInst& inst, uint32_t index, const IrBlock& next)
             else
             {
                 build.vmovsd(valueLhs, regOp(OP_C(inst)));
+            }
+        }
+        else if (tagOp(OP_B(inst)) == LUA_TINTEGER)
+        {
+            OperandX64 valueLhs = OP_A(inst).kind == IrOpKind::Inst ? qword[regOp(OP_A(inst)) + offsetof(TValue, value) + addrOffset]
+                                                                    : luauRegValueInt64(vmRegOp(OP_A(inst)));
+
+            if (OP_C(inst).kind == IrOpKind::Constant)
+            {
+                int64_t value = int64Op(OP_C(inst));
+
+                // x64 mov r/m64, imm32 sign-extends
+                if (value >= INT32_MIN && value <= INT32_MAX)
+                {
+                    build.mov(valueLhs, int32_t(value));
+                }
+                else
+                {
+                    ScopedRegX64 tmp{regs, SizeX64::qword};
+                    build.mov64(tmp.reg, value);
+                    build.mov(valueLhs, tmp.reg);
+                }
+            }
+            else
+            {
+                build.mov(valueLhs, regOp(OP_C(inst)));
             }
         }
         else if (isGCO(tagOp(OP_B(inst))))
@@ -1640,6 +1699,17 @@ void IrLoweringX64::lowerInst(IrInst& inst, uint32_t index, const IrBlock& next)
                     build.cmov(ConditionX64::NotEqual, inst.regX64, tmp2.reg);
                 }
             }
+        }
+        else if (tagOp(OP_B(inst)) == LUA_TINTEGER)
+        {
+            if (OP_C(inst).kind == IrOpKind::Constant)
+                build.cmp(regOp(OP_D(inst)), memRegInt64Op(OP_C(inst))); // swapped arguments
+            else if (OP_D(inst).kind == IrOpKind::Constant)
+                build.cmp(regOp(OP_C(inst)), memRegInt64Op(OP_D(inst)));
+            else
+                build.cmp(regOp(OP_C(inst)), regOp(OP_D(inst)));
+
+            build.setcc(getConditionInt(cond), byteReg(inst.regX64));
         }
         else
         {
@@ -4215,6 +4285,10 @@ OperandX64 IrLoweringX64::memRegInt64Op(IrOp op)
         return regOp(op);
     case IrOpKind::Constant:
         return build.i64(int64Op(op));
+    case IrOpKind::VmReg:
+        return luauRegValueInt64(vmRegOp(op));
+    case IrOpKind::VmConst:
+        return luauConstantValue(vmConstOp(op));
     default:
         CODEGEN_ASSERT(!"Unsupported operand kind");
     }

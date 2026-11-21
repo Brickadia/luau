@@ -73,6 +73,7 @@ public:
     int32_t addConstantNil();
     int32_t addConstantBoolean(bool value);
     int32_t addConstantNumber(double value);
+    int32_t addConstantInteger(int64_t value);
     int32_t addConstantVectorf(float x, float y, float z, float w);
     int32_t addConstantVectord(double x, double y, double z, double w);
     int32_t addConstantString(StringRef value);
@@ -201,6 +202,7 @@ protected:
             Type_Nil,
             Type_Boolean,
             Type_Number,
+            Type_Integer,
             Type_Vectorf,
             Type_Vectord,
             Type_String,
@@ -215,6 +217,7 @@ protected:
         {
             bool valueBoolean;
             double valueNumber;
+            int64_t valueInteger64;
             float valueVectorf[4];
             double valueVectord[4];
             unsigned int valueString; // index into string table

@@ -144,6 +144,7 @@ enum class BcVmConstKind : uint8_t
     Import,
     Table,
     Closure,
+    Integer,
     ClassShape
 };
 
@@ -161,6 +162,7 @@ struct BcVmConst
         uint32_t valueImport;
         uint32_t valueTable;
         uint32_t valueClosure;
+        int64_t valueInteger;
         uint32_t valueClassShape;
     };
 
@@ -205,6 +207,9 @@ struct BcVmConst
 
         case BcVmConstKind::Closure:
             return valueClosure == rhs.valueClosure;
+
+        case BcVmConstKind::Integer:
+            return valueInteger == rhs.valueInteger;
 
         case BcVmConstKind::ClassShape:
             return valueClassShape == rhs.valueClassShape;

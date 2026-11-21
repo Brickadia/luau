@@ -20,6 +20,7 @@ struct Constant
         Type_Nil,
         Type_Boolean,
         Type_Number,
+        Type_Integer,
         Type_Vectorf,
         Type_Vectord,
         Type_String,
@@ -33,6 +34,7 @@ struct Constant
     {
         bool valueBoolean;
         double valueNumber;
+        int64_t valueInteger64;
         float valueVectorf[4];
         double valueVectord[4];
         size_t valueTable;                 // index pointing to constant table entry with table's constant properties

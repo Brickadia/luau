@@ -93,6 +93,8 @@ static Constant ctype(const Constant& c)
     case Constant::Type_Number:
         return cstring("number");
 
+    case Constant::Type_Integer:
+        return cstring("integer");
 
     case Constant::Type_Vectorf:
     case Constant::Type_Vectord:
@@ -122,6 +124,8 @@ static Constant ctypeof(const Constant& c)
     case Constant::Type_Number:
         return cstring("number");
 
+    case Constant::Type_Integer:
+        return cstring("integer");
 
     case Constant::Type_Vectorf:
     case Constant::Type_Vectord:

@@ -5,7 +5,6 @@
 -- Supports reading/writing 1/2/4/8-byte values at arbitrary addresses.
 
 local Int = require("./integer")
-type integer = Int.Int64
 
 local PAGE_BITS = 12
 local PAGE_SIZE = 4096
@@ -108,7 +107,7 @@ function Memory.readU64(self: Memory, addr: integer): integer
     local offset = Memory.offsetOf(addr)
     if offset <= PAGE_SIZE - 8 then
         local page = self:ensurePage(Memory.pageOf(addr))
-        return Int.fromWords(buffer.readu32(page, offset), buffer.readu32(page, offset + 4))
+        return buffer.readinteger(page, offset, 8)
     end
     -- Crosses page boundary
     local lo = Int.from(self:readU32(addr))
@@ -149,8 +148,7 @@ function Memory.writeU64(self: Memory, addr: integer, val: integer)
     local offset = Memory.offsetOf(addr)
     if offset <= PAGE_SIZE - 8 then
         local page = self:ensurePage(Memory.pageOf(addr))
-        buffer.writeu32(page, offset, val.lo)
-        buffer.writeu32(page, offset + 4, val.hi)
+        buffer.writeinteger(page, offset, val, 8)
         return
     end
     local lo = Int.toNumber(Int.band(val, Int.MASK32))

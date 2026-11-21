@@ -34,6 +34,7 @@ LUAU_FASTINTVARIABLE(LuauCompileInlineThresholdMaxBoost, 300)
 LUAU_FASTINTVARIABLE(LuauCompileInlineDepth, 5)
 
 LUAU_FASTFLAG(LuauExportValueSyntax)
+LUAU_FASTFLAG(LuauIntegerType2)
 LUAU_FASTFLAG(DebugLuauNoInline)
 LUAU_FASTFLAGVARIABLE(LuauOptimizeExportTable)
 LUAU_FASTFLAGVARIABLE(LuauExportedTypesParticipateInScc)
@@ -2154,6 +2155,13 @@ struct Compiler
         return (cv != nullptr) && (cv->type == Constant::Type_Vectorf || cv->type == Constant::Type_Vectord);
     }
 
+    bool isConstantInteger(AstExpr* node)
+    {
+        const Constant* cv = constants.find(node);
+
+        return cv && cv->type == Constant::Type_Integer;
+    }
+
     Constant getConstant(AstExpr* node)
     {
         const Constant* cv = constants.find(node);
@@ -2177,8 +2185,8 @@ struct Compiler
                 std::swap(left, right);
         }
 
-        // disable fast path for vectors because supporting it would require a new opcode
-        if (operandIsConstant && isConstantVector(right))
+        // disable fast path for vectors and integers because supporting it would require a new opcode
+        if (operandIsConstant && (isConstantVector(right) || (FFlag::LuauIntegerType2 && isConstantInteger(right))))
             operandIsConstant = false;
 
         uint8_t rl = compileExprAuto(left, rs);
@@ -2288,6 +2296,10 @@ struct Compiler
 
         case Constant::Type_Number:
             cid = bytecode.addConstantNumber(c->valueNumber);
+            break;
+
+        case Constant::Type_Integer:
+            cid = bytecode.addConstantInteger(c->valueInteger64);
             break;
 
         case Constant::Type_Vectorf:
@@ -2529,6 +2541,18 @@ struct Compiler
     void compileExprUnary(AstExprUnary* expr, uint8_t target)
     {
         RegScope rs(this);
+
+        // Special case for integer constants, like -1000000000i
+        AstExprConstantInteger* cint = expr->expr->as<AstExprConstantInteger>();
+        if (FFlag::LuauIntegerType2 && (expr->op == AstExprUnary::Op::Minus) && (cint != nullptr))
+        {
+            int32_t cid = bytecode.addConstantInteger((int64_t)(~(uint64_t)cint->value + 1));
+            if (cid < 0)
+                CompileError::raise(expr->location, "Exceeded constant limit; simplify the code to compile");
+
+            emitLoadK(target, cid);
+            return;
+        }
 
         uint8_t re = compileExprAuto(expr->expr, rs);
 
@@ -3354,6 +3378,18 @@ struct Compiler
         }
         break;
 
+        case Constant::Type_Integer:
+        {
+            int64_t l = cv->valueInteger64;
+
+            int32_t cid = bytecode.addConstantInteger(l);
+            if (cid < 0)
+                CompileError::raise(node->location, "Exceeded constant limit; simplify the code to compile");
+
+            emitLoadK(target, cid);
+        }
+        break;
+
         case Constant::Type_Vectorf:
         {
             int32_t cid = bytecode.addConstantVectorf(cv->valueVectorf[0], cv->valueVectorf[1], cv->valueVectorf[2], cv->valueVectorf[3]);
@@ -3420,6 +3456,14 @@ struct Compiler
         else if (AstExprConstantNumber* expr = node->as<AstExprConstantNumber>())
         {
             int32_t cid = bytecode.addConstantNumber(expr->value);
+            if (cid < 0)
+                CompileError::raise(expr->location, "Exceeded constant limit; simplify the code to compile");
+
+            emitLoadK(target, cid);
+        }
+        else if (AstExprConstantInteger* expr = node->as<AstExprConstantInteger>())
+        {
+            int32_t cid = bytecode.addConstantInteger(expr->value);
             if (cid < 0)
                 CompileError::raise(expr->location, "Exceeded constant limit; simplify the code to compile");
 
@@ -6376,6 +6420,14 @@ void setCompileConstantNumber(CompileConstant* constant, double n)
 
     target->type = Compile::Constant::Type_Number;
     target->valueNumber = n;
+}
+
+void setCompileConstantInteger64(CompileConstant* constant, int64_t l)
+{
+    Compile::Constant* target = reinterpret_cast<Compile::Constant*>(constant);
+
+    target->type = Compile::Constant::Type_Integer;
+    target->valueInteger64 = l;
 }
 
 void setCompileConstantVector(CompileConstant* constant, float x, float y, float z, float w)

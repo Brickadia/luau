@@ -42,6 +42,7 @@ struct TypeFunctionPrimitiveType
         NilType,
         Boolean,
         Number,
+        Integer,
         String,
         Thread,
         Buffer,

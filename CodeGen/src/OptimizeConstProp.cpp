@@ -102,6 +102,9 @@ static uint8_t tryGetTagForTypename(std::string_view name, bool forTypeof)
     if (name == "number")
         return LUA_TNUMBER;
 
+    if (name == "integer")
+        return LUA_TINTEGER;
+
     // typeof(vector) can be changed by environment
     // TODO: support the environment option
     if (name == "vector" && !forTypeof)
@@ -468,6 +471,11 @@ struct ConstPropState
             {
                 if (uint32_t* prevIdx = getPreviousVersionedLoadIndex(IrCmd::LOAD_DOUBLE, vmReg))
                     return std::make_pair(IrCmd::LOAD_DOUBLE, *prevIdx);
+            }
+            else if (tag == LUA_TINTEGER)
+            {
+                if (uint32_t* prevIdx = getPreviousVersionedLoadIndex(IrCmd::LOAD_INT64, vmReg))
+                    return std::make_pair(IrCmd::LOAD_INT64, *prevIdx);
             }
             else if (LUA_VECTOR_DOUBLE == 0 && tag == LUA_TVECTOR)
             {
@@ -1564,6 +1572,7 @@ static void handleBuiltinEffects(ConstPropState& state, LuauBuiltinFunction bfid
     case LBF_BUFFER_READU32:
     case LBF_BUFFER_READF32:
     case LBF_BUFFER_READF64:
+    case LBF_BUFFER_READINTEGER:
     case LBF_VECTOR_MAGNITUDE:
     case LBF_VECTOR_NORMALIZE:
     case LBF_VECTOR_CROSS:
@@ -1580,6 +1589,43 @@ static void handleBuiltinEffects(ConstPropState& state, LuauBuiltinFunction bfid
     case LBF_MATH_ISNAN:
     case LBF_MATH_ISINF:
     case LBF_MATH_ISFINITE:
+    case LBF_INTEGER_ADD:
+    case LBF_INTEGER_MUL:
+    case LBF_INTEGER_IDIV:
+    case LBF_INTEGER_LT:
+    case LBF_INTEGER_CREATE:
+    case LBF_INTEGER_MOD:
+    case LBF_INTEGER_SUB:
+    case LBF_INTEGER_LE:
+    case LBF_INTEGER_GT:
+    case LBF_INTEGER_GE:
+    case LBF_INTEGER_ULT:
+    case LBF_INTEGER_ULE:
+    case LBF_INTEGER_UGT:
+    case LBF_INTEGER_UGE:
+    case LBF_INTEGER_DIV:
+    case LBF_INTEGER_NEG:
+    case LBF_INTEGER_BSWAP:
+    case LBF_INTEGER_MIN:
+    case LBF_INTEGER_MAX:
+    case LBF_INTEGER_REM:
+    case LBF_INTEGER_UDIV:
+    case LBF_INTEGER_UREM:
+    case LBF_INTEGER_BAND:
+    case LBF_INTEGER_BOR:
+    case LBF_INTEGER_BNOT:
+    case LBF_INTEGER_BXOR:
+    case LBF_INTEGER_BTEST:
+    case LBF_INTEGER_COUNTRZ:
+    case LBF_INTEGER_COUNTLZ:
+    case LBF_INTEGER_LSHIFT:
+    case LBF_INTEGER_RSHIFT:
+    case LBF_INTEGER_ARSHIFT:
+    case LBF_INTEGER_LROTATE:
+    case LBF_INTEGER_RROTATE:
+    case LBF_INTEGER_CLAMP:
+    case LBF_INTEGER_EXTRACT:
+    case LBF_INTEGER_TONUMBER:
     case LBF_BUFFER_READVECTORF32X2:
     case LBF_BUFFER_READVECTORF32X3:
     case LBF_BUFFER_READVECTORF32X4:
@@ -1589,6 +1635,7 @@ static void handleBuiltinEffects(ConstPropState& state, LuauBuiltinFunction bfid
     case LBF_BUFFER_WRITEU32:
     case LBF_BUFFER_WRITEF32:
     case LBF_BUFFER_WRITEF64:
+    case LBF_BUFFER_WRITEINTEGER:
     case LBF_BUFFER_WRITEVECTORF32X2:
     case LBF_BUFFER_WRITEVECTORF32X3:
     case LBF_BUFFER_WRITEVECTORF32X4:
@@ -1671,6 +1718,25 @@ static void constPropInInst(ConstPropState& state, IrBuilder& build, IrFunction&
         IrOp value = state.tryGetValue(OP_A(inst));
 
         if (function.asIntOp(value))
+        {
+            substitute(function, inst, value);
+        }
+        else if (OP_A(inst).kind == IrOpKind::VmReg)
+        {
+            if (state.substituteOrRecordValueLoadWithTValueData(build, inst))
+                break;
+
+            state.tryRedirectVmRegLoadToTValueOrigin(inst);
+
+            state.substituteOrRecordVmRegLoad(inst);
+        }
+        break;
+    }
+    case IrCmd::LOAD_INT64:
+    {
+        IrOp value = state.tryGetValue(OP_A(inst));
+
+        if (function.asInt64Op(value))
         {
             substitute(function, inst, value);
         }
@@ -1983,6 +2049,45 @@ static void constPropInInst(ConstPropState& state, IrBuilder& build, IrFunction&
             }
         }
         break;
+    case IrCmd::STORE_INT64:
+        // Unlike STORE_INT (32-bit), do NOT remove TRUNCATE_UINT here:
+        // a 64-bit store uses all bits, so truncation is meaningful.
+
+        if (OP_A(inst).kind == IrOpKind::VmReg)
+        {
+            if (OP_B(inst).kind == IrOpKind::Constant)
+            {
+                if (state.tryGetValue(OP_A(inst)) == OP_B(inst))
+                {
+                    if (FFlag::LuauCodegenMarkUsed)
+                        state.killStore(block, inst);
+                    else
+                        kill(function, inst);
+                }
+                else
+                {
+                    state.saveValue(OP_A(inst), OP_B(inst));
+                }
+            }
+            else
+            {
+                if (uint32_t* prevIdx = state.getPreviousVersionedLoadIndex(IrCmd::LOAD_INT64, OP_A(inst)))
+                {
+                    if (*prevIdx == OP_B(inst).index)
+                    {
+                        if (FFlag::LuauCodegenMarkUsed)
+                            state.killStore(block, inst);
+                        else
+                            kill(function, inst);
+                        break;
+                    }
+                }
+
+                state.invalidateValue(OP_A(inst));
+                state.forwardVmRegStoreToLoad(inst, IrCmd::LOAD_INT64);
+            }
+        }
+        break;
     case IrCmd::STORE_VECTOR:
         state.invalidateValue(OP_A(inst));
 
@@ -2064,6 +2169,9 @@ static void constPropInInst(ConstPropState& state, IrBuilder& build, IrFunction&
                 canSplitTvalueStore = true;
             else if (tag == LUA_TNUMBER &&
                      (value.kind == IrOpKind::Inst || (value.kind == IrOpKind::Constant && function.constOp(value).kind == IrConstKind::Double)))
+                canSplitTvalueStore = true;
+            else if (tag == LUA_TINTEGER &&
+                     (value.kind == IrOpKind::Inst || (value.kind == IrOpKind::Constant && function.constOp(value).kind == IrConstKind::Int64)))
                 canSplitTvalueStore = true;
             else if (tag != 0xff && isGCO(tag) && value.kind == IrOpKind::Inst)
                 canSplitTvalueStore = true;
@@ -2279,6 +2387,8 @@ static void constPropInInst(ConstPropState& state, IrBuilder& build, IrFunction&
             {
                 if (function.constOp(value).kind == IrConstKind::Double)
                     tag = LUA_TNUMBER;
+                else if (function.constOp(value).kind == IrConstKind::Int64)
+                    tag = LUA_TINTEGER;
             }
         }
 
