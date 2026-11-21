@@ -150,6 +150,10 @@ void lua_resetthread(lua_State* L)
     api_check(L, !L->isactive);
     api_check(L, L->status != LUA_OK || L->ci == L->base_ci);
 
+    // A reset thread has no C frames left whose temporaries the handler could own.
+    L->prethrow = NULL;
+    L->prethrowdata = NULL;
+
     // close upvalues before clearing anything
     luaF_close(L, L->stack);
 
