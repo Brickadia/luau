@@ -9009,7 +9009,7 @@ bb_bytecode_0:
   STORE_TAG R3, tnumber
   CHECK_TAG R0, ttable, bb_fallback_5
   %4 = LOAD_POINTER R0
-  %5 = GET_HASH_NODE_ADDR %4, 228911u
+  %5 = GET_HASH_NODE_ADDR %4, 4136823550u
   JUMP_SLOT_MATCH %5, K0 ('Foo'), bb_3, bb_4
 bb_3:
   STORE_POINTER R2, %4

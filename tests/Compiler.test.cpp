@@ -930,7 +930,7 @@ K2: 'b'
 K3: 2
 K4: 'c'
 K5: 3
-K6: {['a'] = 1 #0, ['b'] = 2 #3, ['c'] = 3 #2} sizenode=4
+K6: {['a'] = 1 #3, ['b'] = 2 #3 (conflict), ['c'] = 3 #3 (conflict)} sizenode=4
 K7: 'only'
 K8: 42
 K9: {['only'] = 42 #0} sizenode=1
@@ -940,7 +940,7 @@ K12: 'second'
 K13: 20
 K14: 'third'
 K15: 30
-K16: {['first'] = 10 #1, ['second'] = 20 #3, ['third'] = 30 #3 (conflict)} sizenode=4
+K16: {['first'] = 10 #3, ['second'] = 20 #2, ['third'] = 30 #1} sizenode=4
 DUPTABLE R0 6
 DUPTABLE R1 9
 DUPTABLE R2 16
@@ -15237,9 +15237,9 @@ K5: 1
 K6: {['x'] = 1 #0} sizenode=1
 K7: 2
 K8: 3
-K9: {['x'] = 2 #1, ['y'] = 3 #0} sizenode=2
-K10: {['x'] = 3 #1, ['y'] #0} sizenode=2
-K11: {['x'] #1, ['y'] #0} sizenode=2
+K9: {['x'] = 2 #1, ['y'] = 3 #1 (conflict)} sizenode=2
+K10: {['x'] = 3 #1, ['y'] #1 (conflict)} sizenode=2
+K11: {['x'] #1, ['y'] #1 (conflict)} sizenode=2
 slot 0: shape K6
 slot 1: shape K9
 slot 2: shape K10

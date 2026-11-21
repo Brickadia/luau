@@ -2108,8 +2108,8 @@ bb_0 (entry):
 bb_4:
 ; predecessors: bb_0 [fallthrough]
 ; successors: bb_3 [fallthrough]
-  %5 = GETGLOBAL 10, K0 ('os')                               ; uses: %6
-  %6 = GETTABLEKS %5, 140, K1 ('clock')                      ; uses: %7
+  %5 = GETGLOBAL 84, K0 ('os')                               ; uses: %6
+  %6 = GETTABLEKS %5, 252, K1 ('clock')                      ; uses: %7
   %7 = CALLFB 0, 5, 1, %6
 
 bb_2:
@@ -2276,7 +2276,7 @@ TEST_CASE_FIXTURE(BytecodeInlinerFixture, "feedback_slots_after_inlining")
 ; feedback slot 2: CALLTARGET %6
 bb_0 (entry):
 ; successors: bb_4 [fallthrough], bb_2 [branch]
-  %0 = GETGLOBAL 135, K0 ('f')
+  %0 = GETGLOBAL 154, K0 ('f')
   %1 = CALLFB 0, 1, 0, %0
   %2 = GETUPVAL U0
   %3 = MOVE R0
@@ -2298,7 +2298,7 @@ bb_3:
 ; predecessors: bb_2 [fallthrough], bb_4 [fallthrough]
 ; successors: bb_1 [fallthrough]
   phi.0 = %4[0], %12 from bb_4
-  %5 = GETGLOBAL 134, K1 ('g')
+  %5 = GETGLOBAL 151, K1 ('g')
   %6 = CALLFB 0, 1, 2, %5
   %7 = RETURN 3, %1[0], phi.0, %6[0]
 
@@ -2340,7 +2340,7 @@ TEST_CASE_FIXTURE(BytecodeInlinerFixture, "inlinee_feedback_slots_after_inlining
 ; feedback slot 3: CALLTARGET %10
 bb_0 (entry):
 ; successors: bb_4 [fallthrough], bb_2 [branch]
-  %0 = GETGLOBAL 135, K0 ('f')
+  %0 = GETGLOBAL 154, K0 ('f')
   %1 = CALLFB 0, 1, 0, %0
   %2 = GETUPVAL U0
   %3 = MOVE R0
@@ -2349,7 +2349,7 @@ bb_0 (entry):
 bb_4:
 ; predecessors: bb_0 [fallthrough]
 ; successors: bb_3 [fallthrough]
-  %9 = GETGLOBAL 137, K2 ('h')
+  %9 = GETGLOBAL 102, K2 ('h')
   %10 = CALLFB 0, 1, 3, %9
   %11 = ADD %3, %10[0]
   %13 = MOVE %11
@@ -2363,7 +2363,7 @@ bb_3:
 ; predecessors: bb_2 [fallthrough], bb_4 [fallthrough]
 ; successors: bb_1 [fallthrough]
   phi.0 = %4[0], %13 from bb_4
-  %5 = GETGLOBAL 134, K1 ('g')
+  %5 = GETGLOBAL 151, K1 ('g')
   %6 = CALLFB 0, 1, 2, %5
   %7 = RETURN 3, %1[0], phi.0, %6[0]
 

@@ -284,7 +284,7 @@ bb_0 (entry):
 ; successors: bb_2 [branch], bb_3 [fallthrough]
   %0 = PREPVARARGS 0
   %1 = LOADK K0 (1)                                          ; uses: %4
-  %2 = GETGLOBAL 234, K1 ('limit')                           ; uses: %4
+  %2 = GETGLOBAL 48, K1 ('limit')                            ; uses: %4
   %3 = LOADN 1                                               ; uses: %4
   %4 = FORNPREP %2, %3, %1, bb_2
 
@@ -292,7 +292,7 @@ bb_3:
 ; predecessors: bb_0 [fallthrough], bb_3 [loop]
 ; successors: bb_3 [loop], bb_2 [fallthrough]
   phi.0 = %4[2], %8[2]                                       ; uses: %6, %8
-  %5 = GETGLOBAL 42, K2 ('consume')                          ; uses: %7
+  %5 = GETGLOBAL 129, K2 ('consume')                         ; uses: %7
   %6 = MOVE phi.0                                            ; uses: %7
   %7 = CALL 1, 0, %5, %6
   %8 = FORNLOOP %4[0], %4[1], phi.0, bb_3
@@ -326,14 +326,14 @@ TEST_CASE_FIXTURE(BytecodeCompilerFixture, "generic_for_loop")
 bb_0 (entry):
 ; successors: bb_2 [branch]
   %0 = PREPVARARGS 0
-  %1 = GETGLOBAL 68, K0 ('iterate')                          ; uses: %2
+  %1 = GETGLOBAL 38, K0 ('iterate')                          ; uses: %2
   %2 = CALL 0, 3, %1
   %3 = FORGPREP %2[0], %2[1], %2[2], bb_2
 
 bb_3:
 ; predecessors: bb_2 [loop]
 ; successors: bb_2 [fallthrough]
-  %4 = GETGLOBAL 42, K1 ('consume')                          ; uses: %7
+  %4 = GETGLOBAL 129, K1 ('consume')                         ; uses: %7
   %5 = MOVE %8[3]                                            ; uses: %7
   %6 = MOVE %8[4]                                            ; uses: %7
   %7 = CALL 2, 0, %4, %5, %6
@@ -376,7 +376,7 @@ bb_0 (entry):
 ; successors: bb_2 [branch], bb_3 [fallthrough]
   %0 = PREPVARARGS 0
   %1 = LOADK K0 (1)                                          ; uses: %4
-  %2 = GETGLOBAL 22, K1 ('outerLimit')                       ; uses: %4
+  %2 = GETGLOBAL 54, K1 ('outerLimit')                       ; uses: %4
   %3 = LOADN 1                                               ; uses: %4
   %4 = FORNPREP %2, %3, %1, bb_2
 
@@ -385,7 +385,7 @@ bb_3:
 ; successors: bb_4 [branch], bb_5 [fallthrough]
   phi.4 = %4[2], %14[2]                                      ; uses: phi.0, %10, phi.11, phi.11, %14
   %5 = LOADK K0 (1)                                          ; uses: %8
-  %6 = GETGLOBAL 63, K2 ('innerLimit')                       ; uses: %8
+  %6 = GETGLOBAL 150, K2 ('innerLimit')                      ; uses: %8
   %7 = LOADN 1                                               ; uses: %8
   %8 = FORNPREP %6, %7, %5, bb_4
 
@@ -393,7 +393,7 @@ bb_5:
 ; predecessors: bb_3 [fallthrough], bb_5 [loop]
 ; successors: bb_5 [loop], bb_4 [fallthrough]
   phi.1 = %8[2], %13[2]                                      ; uses: %11, %13
-  %9 = GETGLOBAL 42, K3 ('consume')                          ; uses: %12
+  %9 = GETGLOBAL 129, K3 ('consume')                         ; uses: %12
   %10 = MOVE phi.4                                           ; uses: %12
   %11 = MOVE phi.1                                           ; uses: %12
   %12 = CALL 2, 0, %9, %10, %11
@@ -547,7 +547,7 @@ bb_3:
 bb_5:
 ; predecessors: bb_3 [fallthrough]
 ; successors: bb_4 [fallthrough]
-  %7 = GETGLOBAL 70, K4 ('print')                            ; uses: %9
+  %7 = GETGLOBAL 107, K4 ('print')                           ; uses: %9
   %8 = MOVE phi.1                                            ; uses: %9
   %9 = CALLFB 1, 0, 0, %7, %8
 
@@ -664,7 +664,7 @@ TEST_CASE_FIXTURE(BytecodeCompilerFixture, "multi_call_fixed")
 ; feedback slot 0: CALLTARGET %1
 bb_0 (entry):
 ; successors: bb_1 [fallthrough]
-  %0 = GETGLOBAL 135, K0 ('f')
+  %0 = GETGLOBAL 154, K0 ('f')
   %1 = CALLFB 0, 2, 0, %0
   %2 = MOVE %1[0]
   %3 = RETURN 2, %1[1], %2
@@ -786,11 +786,11 @@ TEST_CASE_FIXTURE(BytecodeCompilerFixture, "tables_strings_and_fastcall")
 bb_0 (entry):
 ; successors: bb_1 [fallthrough]
   %0 = DUPTABLE K2 ({...})                                   ; uses: %1, %5, %7
-  %1 = SETTABLEKS R0, %0, 128, K0 ('a')
+  %1 = SETTABLEKS R0, %0, 31, K0 ('a')
   %2 = MOVE R0                                               ; uses: %4
   %3 = LOADN 42                                              ; uses: %4
   %4 = CONCAT %2, %3                                         ; uses: %5
-  %5 = SETTABLEKS %4, %0, 131, K1 ('b')
+  %5 = SETTABLEKS %4, %0, 63, K1 ('b')
   %6 = NEWTABLE 0, 1                                         ; uses: %8, %10, %12
   %7 = MOVE %0                                               ; uses: %8
   %8 = SETLIST 1, 1, %6, %7
@@ -1076,7 +1076,7 @@ K11: class Cat (public fields: 1, public methods: 2, private fields: 0, private 
     K6 ['__init']
 K12: 'print'
 K13: print
-K14: {['Animal'] #1, ['Cat'] #0} sizenode=2
+K14: {['Animal'] #0, ['Cat'] #1} sizenode=2
 NEWCLASS R0 no_base K7 1 [class Animal (public fields: 1, public methods: 3, private fields: 0, private methods: 0)]
 DUPCLOSURE R1 K2 ['__tostring']
 NEWCLASSMEMBER R0 R1 [public] ['__tostring']
@@ -1264,11 +1264,11 @@ TEST_CASE_FIXTURE(BytecodeCompilerFixture, "call_feedback_slots")
 ; feedback slot 2: CALLTARGET %5
 bb_0 (entry):
 ; successors: bb_1 [fallthrough]
-  %0 = GETGLOBAL 135, K0 ('f')
+  %0 = GETGLOBAL 154, K0 ('f')
   %1 = CALLFB 0, 1, 0, %0
-  %2 = GETGLOBAL 134, K1 ('g')
+  %2 = GETGLOBAL 151, K1 ('g')
   %3 = CALLFB 0, 1, 1, %2
-  %4 = GETGLOBAL 137, K2 ('h')
+  %4 = GETGLOBAL 102, K2 ('h')
   %5 = CALLFB 0, 1, 2, %4
   %6 = RETURN 3, %1[0], %3[0], %5[0]
 

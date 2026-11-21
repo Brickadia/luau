@@ -177,6 +177,8 @@ LUA_API const LUA_VECTOR_TYPE* lua_tovector(lua_State* L, int idx);
 LUA_API int lua_toboolean(lua_State* L, int idx);
 LUA_API int64_t lua_tointeger64(lua_State* L, int idx, int* isinteger);
 LUA_API const char* lua_tolstring(lua_State* L, int idx, size_t* len);
+// As lua_tolstring, also giving the string table hash (the low 32 bits of XXH3_64bits); 0 when it returns NULL.
+LUA_API const char* lua_tolstringhashed(lua_State* L, int idx, size_t* len, unsigned int* hash);
 LUA_API const char* lua_tostringatom(lua_State* L, int idx, int* atom);
 LUA_API const char* lua_tolstringatom(lua_State* L, int idx, size_t* len, int* atom);
 LUA_API const char* lua_namecallatom(lua_State* L, int* atom);
@@ -206,6 +208,8 @@ LUA_API void lua_pushvector(lua_State* L, LUA_VECTOR_TYPE x, LUA_VECTOR_TYPE y, 
 LUA_API void lua_pushvector(lua_State* L, LUA_VECTOR_TYPE x, LUA_VECTOR_TYPE y, LUA_VECTOR_TYPE z);
 #endif
 LUA_API void lua_pushlstring(lua_State* L, const char* s, size_t l);
+// hash must be the low 32 bits of XXH3_64bits(s, l), the string table hash.
+LUA_API void lua_pushlstringhashed(lua_State* L, const char* s, size_t l, unsigned int hash);
 LUA_API void lua_pushstring(lua_State* L, const char* s);
 LUA_API const char* lua_pushvfstring(lua_State* L, const char* fmt, va_list argp);
 LUA_API LUA_PRINTF_ATTR(2, 3) const char* lua_pushfstringL(lua_State* L, const char* fmt, ...);

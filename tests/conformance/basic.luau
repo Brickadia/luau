@@ -245,9 +245,9 @@ assert((function() local a = {} for k,v in pairs({a=1, b=2, c=3}) do a[k] = 1 en
 assert((function() local a = {} for k,v in pairs({a=1, b=2, c=3}) do a[k] = v end return a.a + a.b + a.c end)() == 6)
 
 -- pairs on mixed array/table + gaps in the array portion
--- note that a,b,c results in a,c,b during traversal since index is based on hash & size
-assert((function() local a = {} for k,v in pairs({1, 2, 3, a=5, b=6, c=7}) do a[#a+1] = v end return table.concat(a, ',') end)() == "1,2,3,5,7,6")
-assert((function() local a = {} for k,v in pairs({1, 2, 3, nil, 4, a=5, b=6, c=7}) do a[#a+1] = v end return table.concat(a, ',') end)() == "1,2,3,4,5,7,6")
+-- the array part is traversed first and in order; the hash part's order depends on the string hash
+assert((function() local a = {} for k,v in pairs({1, 2, 3, a=5, b=6, c=7}) do a[#a+1] = v end local h = {a[4], a[5], a[6]} table.sort(h) return #a .. ":" .. table.concat(a, ',', 1, 3) .. ";" .. table.concat(h, ',') end)() == "6:1,2,3;5,6,7")
+assert((function() local a = {} for k,v in pairs({1, 2, 3, nil, 4, a=5, b=6, c=7}) do a[#a+1] = v end local h = {a[5], a[6], a[7]} table.sort(h) return #a .. ":" .. table.concat(a, ',', 1, 4) .. ";" .. table.concat(h, ',') end)() == "7:1,2,3,4;5,6,7")
 
 -- pairs manually
 assert((function() local a = '' for k in next,{5, 6, 7} do a = a .. k end return a end)() == "123")
@@ -305,8 +305,22 @@ assert((function() return table.concat({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1
 assert((function() return table.concat({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, ',') end)() == "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16")
 assert((function() return table.concat({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}, ',') end)() == "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17")
 
--- some scripts rely on exact table traversal order; while it's evil to do so, let's check that it works
+-- some scripts rely on a stable table traversal order; the exact order depends on the string hash, so check
+-- that identical tables traverse identically whether they are built from constants or at runtime
 assert((function()
+    local function biomes(v)
+        return {
+            ['Mountains'] = v,
+            ['Canyons'] = v,
+            ['Dunes'] = v,
+            ['Arctic'] = v,
+            ['Lavaflow'] = v,
+            ['Hills'] = v,
+            ['Plains'] = v,
+            ['Marsh'] = v,
+            ['Water'] = v,
+        }
+    end
     local kSelectedBiomes = {
         ['Mountains'] = true,
         ['Canyons'] = true,
@@ -318,10 +332,14 @@ assert((function()
         ['Marsh'] = true,
         ['Water'] = true,
     }
-    local result = ""
-    for k in pairs(kSelectedBiomes) do result = result .. k end
-    return result
-end)() == "ArcticDunesCanyonsWaterMountainsHillsLavaflowPlainsMarsh")
+    local function order(t)
+        local result, count = "", 0
+        for k in pairs(t) do result = result .. k .. ";" count += 1 end
+        return result, count
+    end
+    local expected, count = order(kSelectedBiomes)
+    return count == 9 and order(biomes(true)) == expected and order(kSelectedBiomes) == expected
+end)())
 
 -- table literals may contain duplicate fields; the language doesn't specify assignment order but we currently assign left to right
 assert((function() local t = {data = 4, data = nil, data = 42} return t.data end)() == 42)

@@ -824,27 +824,30 @@ end)() == nil)
 -- check that tables with constant keys maintain their insertion/iteration order
 -- this is important to maintain for backwards compat
 do
+  local function id(v) return v end
+
   local ordering = {
     foo = 1,
     bar = "string",
     thing = true
   }
+  local runtime = {
+    foo = id(1),
+    bar = id("string"),
+    thing = id(true)
+  }
 
-  local idx = 1
+  local keys, runtimeKeys = {}, {}
   for key, val in ordering do
-    if idx == 3 then
-      assert(key == "foo")
-      assert(val == 1)
-    elseif idx == 2 then
-      assert(key == "bar")
-      assert(val == "string")
-    elseif idx == 1 then
-      assert(key == "thing")
-      assert(val == true)
-    end
-
-    idx += 1
+    assert(runtime[key] == val)
+    table.insert(keys, key)
   end
+  for key in runtime do
+    table.insert(runtimeKeys, key)
+  end
+
+  assert(#keys == 3)
+  assert(table.concat(keys, ",") == table.concat(runtimeKeys, ","))
 end
 
 do

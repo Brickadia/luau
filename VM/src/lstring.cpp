@@ -11,40 +11,13 @@ LUAU_FASTFLAGVARIABLE(LuauSaltedInterningTable)
 
 #define salthash(hash, saltmult, saltadd) uint32_t((saltmult) * (hash) + (saltadd))
 #define tobucket(hash, hashshift) int((hash) >> (hashshift))
+#define XXH_INLINE_ALL
+#include "xxhash.h"
 
 unsigned int luaS_hash(const char* str, size_t len)
 {
     // Note that this hashing algorithm is replicated in BytecodeBuilder.cpp, BytecodeBuilder::getStringHash
-    unsigned int a = 0, b = 0;
-    unsigned int h = unsigned(len);
-
-    // hash prefix in 12b chunks (using aligned reads) with ARX based hash (LuaJIT v2.1, lookup3)
-    // note that we stop at length<32 to maintain compatibility with Lua 5.1
-    while (len >= 32)
-    {
-#define rol(x, s) ((x >> s) | (x << (32 - s)))
-#define mix(u, v, w) a ^= h, a -= rol(h, u), b ^= a, b -= rol(a, v), h ^= b, h -= rol(b, w)
-
-        // should compile into fast unaligned reads
-        uint32_t block[3];
-        memcpy(block, str, 12);
-
-        a += block[0];
-        b += block[1];
-        h += block[2];
-        mix(14, 11, 25);
-        str += 12;
-        len -= 12;
-
-#undef mix
-#undef rol
-    }
-
-    // original Lua 5.1 hash for compatibility (exact match when len<32)
-    for (size_t i = len; i > 0; --i)
-        h ^= (h << 5) + (h >> 2) + (uint8_t)str[i - 1];
-
-    return h;
+    return unsigned(XXH3_64bits(str, len));
 }
 
 static void luaS_rehash(lua_State* L, int newsize, uint32_t saltmult, uint32_t saltadd)
@@ -189,7 +162,7 @@ TString* luaS_buffinish(lua_State* L, TString* ts)
     // search if we already have this string in the hash table
     for (TString* el = tb->hash[bucket]; el != NULL; el = el->next)
     {
-        if (el->len == ts->len && memcmp(el->data, ts->data, ts->len) == 0)
+        if (el->hash == h && el->len == ts->len && memcmp(el->data, ts->data, ts->len) == 0)
         {
             // string may be dead
             if (isdead(L->global, obj2gco(el)))
@@ -216,15 +189,19 @@ TString* luaS_buffinish(lua_State* L, TString* ts)
 
 TString* luaS_newlstr(lua_State* L, const char* str, size_t l)
 {
+    return luaS_newlstrhashed(L, str, l, luaS_hash(str, l));
+}
+
+TString* luaS_newlstrhashed(lua_State* L, const char* str, size_t l, unsigned int h)
+{
     if (FFlag::LuauSaltedInterningTable)
     {
         global_State* g = L->global;
-        unsigned int h = luaS_hash(str, l);
         unsigned int saltedh = salthash(h, g->strt.saltmult, g->strt.saltadd);
 
         for (TString* el = g->strt.hash[tobucket(saltedh, g->strt.hashshift)]; el != NULL; el = el->next)
         {
-            if (el->len == l && (memcmp(str, getstr(el), l) == 0))
+            if (el->hash == h && el->len == l && (memcmp(str, getstr(el), l) == 0))
             {
                 // string may be dead
                 if (isdead(g, obj2gco(el)))
@@ -237,10 +214,9 @@ TString* luaS_newlstr(lua_State* L, const char* str, size_t l)
     }
     else
     {
-        unsigned int h = luaS_hash(str, l);
         for (TString* el = L->global->strt.hash[lmod(h, L->global->strt.size)]; el != NULL; el = el->next)
         {
-            if (el->len == l && (memcmp(str, getstr(el), l) == 0))
+            if (el->hash == h && el->len == l && (memcmp(str, getstr(el), l) == 0))
             {
                 // string may be dead
                 if (isdead(L->global, obj2gco(el)))

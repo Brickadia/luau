@@ -105,6 +105,7 @@ target_link_libraries(Luau.Ast PUBLIC Luau.Common)
 
 target_compile_features(Luau.Bytecode PUBLIC cxx_std_17)
 target_include_directories(Luau.Bytecode PUBLIC Bytecode/include)
+target_include_directories(Luau.Bytecode PRIVATE extern/xxhash)
 target_link_libraries(Luau.Bytecode PUBLIC Luau.Common)
 
 target_compile_features(Luau.Inliner PUBLIC cxx_std_17)
@@ -134,6 +135,7 @@ target_link_libraries(Luau.CodeGen PUBLIC Luau.Common)
 
 target_compile_features(Luau.VM PRIVATE cxx_std_11)
 target_include_directories(Luau.VM PUBLIC VM/include)
+target_include_directories(Luau.VM PRIVATE extern/xxhash)
 target_link_libraries(Luau.VM PUBLIC Luau.Common)
 
 target_compile_features(Luau.Require PUBLIC cxx_std_17)
