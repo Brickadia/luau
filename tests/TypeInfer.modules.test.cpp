@@ -224,12 +224,19 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "require_module_that_does_not_export")
     ModulePtr bModule = getFrontend().moduleResolver.getModule("game/Workspace/B");
 
     CHECK(aModule->errors.empty());
-    REQUIRE_EQ(1, bModule->errors.size());
-    CHECK_MESSAGE(get<IllegalRequire>(bModule->errors[0]), "Should be IllegalRequire: " << toString(bModule->errors[0]));
-
     auto hootyType = requireType(bModule, "Hooty");
 
-    CHECK_EQ("*error-type*", toString(hootyType));
+    if (FFlag::DebugLuauForceOldSolver)
+    {
+        REQUIRE_EQ(1, bModule->errors.size());
+        CHECK_MESSAGE(get<IllegalRequire>(bModule->errors[0]), "Should be IllegalRequire: " << toString(bModule->errors[0]));
+        CHECK_EQ("*error-type*", toString(hootyType));
+    }
+    else
+    {
+        CHECK(bModule->errors.empty());
+        CHECK_EQ("nil", toString(hootyType));
+    }
 }
 
 TEST_CASE_FIXTURE(BuiltinsFixture, "warn_if_you_try_to_require_a_non_modulescript")

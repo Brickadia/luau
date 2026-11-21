@@ -102,6 +102,7 @@ static TypeId shallowClone(TypeId ty, TypeArena& dest, const TxnLog* log)
             TableType clone = TableType{a.props, a.indexer, a.level, a.scope, a.state};
             clone.definitionModuleName = a.definitionModuleName;
             clone.definitionLocation = a.definitionLocation;
+            clone.rejectsExtraProperties = a.rejectsExtraProperties;
             clone.name = a.name;
             clone.syntheticName = a.syntheticName;
             clone.instantiatedTypeParams = a.instantiatedTypeParams;

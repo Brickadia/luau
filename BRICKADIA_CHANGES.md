@@ -183,6 +183,34 @@ may be NULL. Upstream's salted interning table (`LuauSaltedInterningTable`,
 `lua_setpointerencodekey`) salts only the bucket index, so the stored and exchanged
 hash stays the unsalted `luaS_hash`.
 
+## Type checking of content scripts
+
+### Definition-file tables reject unknown fields in literals
+
+Brickadia's content scripts fill in tables whose types come from definition files
+(`Content.Projectile.define("X", { movement = { ... } })`). Width subtyping lets a misspelled
+field through silently, so table types declared in a definition file (`Mode::Definition`) carry
+`TableType::rejectsExtraProperties`. In strict mode, the new solver's TypeChecker2 reports a key a
+table literal adds to such a table, unless the table has an indexer:
+
+```
+Unknown field 'movemeent' in ProjectileDef; did you mean 'movement'?
+```
+
+The suggestion is the closest declared field within `max(2, length / 3)` edits. Literals are
+walked even when they already pass subtyping, nested tables included. Only this literal check
+changes; subtyping and normalization keep width subtyping. `Substitution` copies the flag so
+instantiated aliases (`ContentKind<ProjectileDef>`) keep it. Not covered: literals wrapped in
+parentheses or `if`/`or` when passed to a call, definition tables inside intersections, and
+non-strict files.
+
+### Requiring a module that returns nothing gives nil
+
+A module required only for its side effects (`require("./weapons/pistol")`) returns nothing.
+Upstream reports "Module does not return exactly 1 value"; the new solver types such a require as
+`nil` instead, matching Brickadia's runtime require, and `require_module_that_does_not_export`
+expects that. The old solver is unchanged.
+
 ## Testing
 
 Each change's own tests live in `tests/Brickadia.<Change>.test.cpp` (Luau.Conformance) or

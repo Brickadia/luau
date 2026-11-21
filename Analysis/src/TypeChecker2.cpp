@@ -14,6 +14,7 @@
 #include "Luau/Normalize.h"
 #include "Luau/OverloadResolver.h"
 #include "Luau/StackPusher.h"
+#include "Luau/StringUtils.h"
 #include "Luau/Subtyping.h"
 #include "Luau/TimeTrace.h"
 #include "Luau/ToString.h"
@@ -3728,6 +3729,49 @@ void TypeChecker2::explainError(TypePackId subTy, TypePackId superTy, Location l
         reportError(TypePackMismatch{superTy, subTy, reasonings.toString()}, location);
 }
 
+static bool rejectsExtraProperties(TypeId ty)
+{
+    ty = follow(ty);
+    if (auto tt = get<TableType>(ty))
+        return tt->rejectsExtraProperties;
+
+    if (auto ut = get<UnionType>(ty))
+    {
+        for (TypeId option : ut)
+        {
+            if (rejectsExtraProperties(option))
+                return true;
+        }
+    }
+
+    return false;
+}
+
+static std::string unknownFieldMessage(const TableType& table, const std::string& key)
+{
+    std::string message = "Unknown field '" + key + "'";
+    if (table.name)
+        message += " in " + *table.name;
+
+    // Only suggest a field within a few edits of the key.
+    const std::string* closest = nullptr;
+    size_t closestDistance = std::max<size_t>(2, key.size() / 3) + 1;
+    for (const auto& [name, prop] : table.props)
+    {
+        size_t distance = editDistance(key, name);
+        if (distance < closestDistance)
+        {
+            closest = &name;
+            closestDistance = distance;
+        }
+    }
+
+    if (closest)
+        message += "; did you mean '" + *closest + "'?";
+
+    return message;
+}
+
 bool TypeChecker2::testLiteralOrAstTypeIsSubtype(AstExpr* expr, TypeId expectedType)
 {
     NotNull<Scope> scope{stack.back()};
@@ -3781,7 +3825,8 @@ bool TypeChecker2::testLiteralOrAstTypeIsSubtype(AstExpr* expr, TypeId expectedT
 
     SubtypingResult r = subtyping->isSubtype(exprTy, expectedType, scope);
 
-    if (r.isSubtype)
+    // Width subtyping accepts extra properties, so literals of definition-file tables still need the per-item walk.
+    if (r.isSubtype && !(expr->is<AstExprTable>() && rejectsExtraProperties(expectedType)))
         return true;
 
     return testPotentialLiteralIsSubtype(expr, expectedType);
@@ -3904,6 +3949,12 @@ bool TypeChecker2::testPotentialLiteralIsSubtype(AstExpr* expr, TypeId expectedT
                     auto inferredKeyType = module->internalTypes->addType(SingletonType{StringSingleton{keyStr}});
                     isSubtype &= testIsSubtype(inferredKeyType, expectedTableType->indexer->indexType, item.key->location);
                     isSubtype &= testPotentialLiteralIsSubtype(item.value, expectedTableType->indexer->indexResultType);
+                }
+
+                if (expectedTableType->rejectsExtraProperties && !expectedTableType->indexer)
+                {
+                    isSubtype = false;
+                    reportError(GenericError{unknownFieldMessage(*expectedTableType, keyStr)}, item.key->location);
                 }
 
                 // If there's no indexer, by width subtyping we do nothing
