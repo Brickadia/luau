@@ -303,6 +303,16 @@ void luaC_validate(lua_State* L)
             LUAU_ASSERT(!isdead(g, obj2gco(g->udatamt[i])));
     }
 
+    for (int i = 0; i < LUA_LUTAG_LIMIT; i++)
+    {
+        if (g->ludatamt[i])
+            LUAU_ASSERT(!isdead(g, obj2gco(g->ludatamt[i])));
+
+        checkliveness(g, &g->ludatadirect[i].indextm);
+        checkliveness(g, &g->ludatadirect[i].newindextm);
+        checkliveness(g, &g->ludatadirect[i].namecalltm);
+    }
+
     for (int i = 0; i < UTAG_INTERNAL_LIMIT; i++)
     {
         checkliveness(g, &g->udatadirect[i].indextm);
@@ -1189,6 +1199,23 @@ void luaC_enumheap(
     {
         if (g->udatamt[i])
             enumedge(&ctx, obj2gco(g->mainthread), obj2gco(g->udatamt[i]), "[userdata metatable]");
+    }
+
+    for (int i = 0; i < LUA_LUTAG_LIMIT; i++)
+    {
+        if (g->ludatamt[i])
+            enumedge(&ctx, obj2gco(g->mainthread), obj2gco(g->ludatamt[i]), "[lightuserdata metatable]");
+
+        const lua_UdataDirectAccessData& direct = g->ludatadirect[i];
+
+        if (iscollectable(&direct.indextm))
+            enumedge(&ctx, obj2gco(g->mainthread), gcvalue(&direct.indextm), "[direct lightuserdata]");
+
+        if (iscollectable(&direct.newindextm))
+            enumedge(&ctx, obj2gco(g->mainthread), gcvalue(&direct.newindextm), "[direct lightuserdata]");
+
+        if (iscollectable(&direct.namecalltm))
+            enumedge(&ctx, obj2gco(g->mainthread), gcvalue(&direct.namecalltm), "[direct lightuserdata]");
     }
 
     for (int i = 0; i < LUA_LUTAG_LIMIT; i++)

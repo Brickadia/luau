@@ -37,7 +37,7 @@
 
 static int luauF_assert(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
-    if (nparams >= 1 && nresults == 0 && !l_isfalse(arg0))
+    if (nparams >= 1 && nresults == 0 && !l_isfalseL(L, arg0))
     {
         return 0;
     }
@@ -1217,6 +1217,8 @@ static int luauF_getmetatable(lua_State* L, StkId res, TValue* arg0, int nresult
             mt = hvalue(arg0)->metatable;
         else if (ttisuserdata(arg0))
             mt = uvalue(arg0)->metatable;
+        else if (ttislightuserdata(arg0))
+            mt = luaE_lightuserdatamt(L->global, arg0);
         else
             mt = L->global->mt[ttype(arg0)];
 

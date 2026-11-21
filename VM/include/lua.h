@@ -441,6 +441,9 @@ LUA_API int lua_getweakref(lua_State* L, int ref); // returns the type of the va
 LUA_API void lua_setuserdatametatable(lua_State* L, int tag);
 LUA_API void lua_getuserdatametatable(lua_State* L, int tag);
 
+LUA_API void lua_setlightuserdatametatable(lua_State* L, int tag);
+LUA_API void lua_getlightuserdatametatable(lua_State* L, int tag);
+
 // Returns the name of a userdata tag - `__type` from the metatable or "userdata" if it is not set
 LUA_API const char* lua_getuserdataname(lua_State* L, int tag);
 
@@ -452,6 +455,15 @@ typedef void (*lua_UserdataDirectAccess)(lua_State* L, void* data, int atom, uin
 typedef int (*lua_UserdataDirectNamecall)(lua_State* L, void* data, int atom, uint16_t* cachedslot, int utag);
 
 LUA_API int lua_registeruserdatadirectaccess(
+    lua_State* L,
+    int tag,
+    lua_UserdataDirectAccess get,
+    lua_UserdataDirectAccess set,
+    lua_UserdataDirectNamecall namecall
+);
+
+// The same for a lightuserdata tag with a metatable from lua_setlightuserdatametatable; data is the pointer value.
+LUA_API int lua_registerlightuserdatadirectaccess(
     lua_State* L,
     int tag,
     lua_UserdataDirectAccess get,
@@ -485,6 +497,12 @@ LUA_API void lua_userdatadirectfield_setnil(void* result);
 
 LUA_API void lua_setlightuserdataname(lua_State* L, int tag, const char* name);
 LUA_API const char* lua_getlightuserdataname(lua_State* L, int tag);
+
+// Liveness checks for tagged lightuserdata: values whose check returns 0 evaluate as false in
+// boolean contexts (if/and/or/not/lua_toboolean). Equality, type() and table keys are unaffected.
+// The check runs inside the interpreter loop: it must not call into the VM, error, or allocate.
+typedef int (*lua_LightUserdataLiveness)(void* p);
+LUA_API void lua_setlightuserdatalivenesscheck(lua_State* L, int tag, lua_LightUserdataLiveness check);
 
 LUA_API void lua_clonefunction(lua_State* L, int idx);
 LUA_API int lua_usesexport(lua_State* L, int idx);

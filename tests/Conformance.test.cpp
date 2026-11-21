@@ -5576,6 +5576,8 @@ TEST_CASE("HugeFunctionLoadFailure")
 
     static size_t largeAllocationToFail = 0;
     static size_t largeAllocationCount = 0;
+    // Only luau_load's allocations fail: the main state is large too with a raised LUA_LUTAG_LIMIT.
+    static bool failLargeAllocations = false;
 
     const auto testAllocate = [](void* ud, void* ptr, size_t osize, size_t nsize) -> void*
     {
@@ -5584,7 +5586,7 @@ TEST_CASE("HugeFunctionLoadFailure")
             free(ptr);
             return nullptr;
         }
-        else if (nsize > 32768)
+        else if (nsize > 32768 && failLargeAllocations)
         {
             if (largeAllocationCount == largeAllocationToFail)
                 return nullptr;
@@ -5612,7 +5614,9 @@ TEST_CASE("HugeFunctionLoadFailure")
         luaL_sandbox(L);
         luaL_sandboxthread(L);
 
+        failLargeAllocations = true;
         int status = luau_load(L, "=HugeFunction", bytecode, bytecodeSize, 0);
+        failLargeAllocations = false;
         REQUIRE(status == 1);
 
         const char* error = lua_tostring(L, -1);

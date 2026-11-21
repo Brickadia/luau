@@ -9,6 +9,7 @@
 #include "ltable.h"
 #include "lfunc.h"
 #include "lgc.h"
+#include "lmem.h"
 #include "ldo.h"
 #include "ltm.h"
 #include "ludata.h"
@@ -474,7 +475,7 @@ unsigned lua_tounsignedx(lua_State* L, int idx, int* isnum)
 int lua_toboolean(lua_State* L, int idx)
 {
     const TValue* o = index2addr(L, idx);
-    return !l_isfalse(o);
+    return !l_isfalseL(L, o);
 }
 
 int64_t lua_tointeger64(lua_State* L, int idx, int* isinteger)
@@ -944,6 +945,9 @@ int lua_getmetatable(lua_State* L, int objindex)
         break;
     case LUA_TUSERDATA:
         mt = uvalue(obj)->metatable;
+        break;
+    case LUA_TLIGHTUSERDATA:
+        mt = luaE_lightuserdatamt(L->global, obj);
         break;
     case LUA_TOBJECT:
         mt = objectvalue(obj)->lclass->instancemetatable;
@@ -2060,6 +2064,34 @@ void lua_getuserdatametatable(lua_State* L, int tag)
     api_incr_top(L);
 }
 
+void lua_setlightuserdatametatable(lua_State* L, int tag)
+{
+    api_checknelems(L, 1);
+    api_check(L, unsigned(tag) < LUA_LUTAG_LIMIT);
+    api_check(L, !L->global->ludatamt[tag]); // reassignment not supported
+    api_check(L, ttistable(L->top - 1));
+    L->global->ludatamt[tag] = hvalue(L->top - 1);
+    L->top--;
+}
+
+void lua_getlightuserdatametatable(lua_State* L, int tag)
+{
+    api_check(L, unsigned(tag) < LUA_LUTAG_LIMIT);
+    luaC_threadbarrier(L);
+    ensure_stack(L, 1);
+
+    if (LuaTable* h = L->global->ludatamt[tag])
+    {
+        sethvalue(L, L->top, h);
+    }
+    else
+    {
+        setnilvalue(L->top);
+    }
+
+    api_incr_top(L);
+}
+
 const char* lua_getuserdataname(lua_State* L, int tag)
 {
     api_check(L, unsigned(tag) < LUA_UTAG_LIMIT);
@@ -2076,22 +2108,20 @@ const char* lua_getuserdataname(lua_State* L, int tag)
     return tname;
 }
 
-int lua_registeruserdatadirectaccess(
+static int registerdirectaccess(
     lua_State* L,
-    int tag,
+    LuaTable* h,
+    lua_UdataDirectAccessData& udatadirect,
     lua_UserdataDirectAccess get,
     lua_UserdataDirectAccess set,
     lua_UserdataDirectNamecall namecall
 )
 {
-    api_check(L, unsigned(tag) < LUA_UTAG_LIMIT);
     luaC_threadbarrier(L);
 
-    if (LuaTable* h = L->global->udatamt[tag])
+    if (h)
     {
         // only metamehtods that are present will be called directly
-        lua_UdataDirectAccessData& udatadirect = L->global->udatadirect[tag];
-
         if (const TValue* indextm = fasttm(L, h, TM_INDEX))
         {
             udatadirect.indextm = *indextm;
@@ -2116,6 +2146,35 @@ int lua_registeruserdatadirectaccess(
     return 0;
 }
 
+int lua_registeruserdatadirectaccess(
+    lua_State* L,
+    int tag,
+    lua_UserdataDirectAccess get,
+    lua_UserdataDirectAccess set,
+    lua_UserdataDirectNamecall namecall
+)
+{
+    api_check(L, unsigned(tag) < LUA_UTAG_LIMIT);
+    return registerdirectaccess(L, L->global->udatamt[tag], L->global->udatadirect[tag], get, set, namecall);
+}
+
+int lua_registerlightuserdatadirectaccess(
+    lua_State* L,
+    int tag,
+    lua_UserdataDirectAccess get,
+    lua_UserdataDirectAccess set,
+    lua_UserdataDirectNamecall namecall
+)
+{
+    api_check(L, unsigned(tag) < LUA_LUTAG_LIMIT);
+    global_State* g = L->global;
+
+    if (!g->ludatamt[tag])
+        return 0;
+
+    return registerdirectaccess(L, g->ludatamt[tag], g->ludatadirect[tag], get, set, namecall);
+}
+
 void lua_setlightuserdataname(lua_State* L, int tag, const char* name)
 {
     api_check(L, unsigned(tag) < LUA_LUTAG_LIMIT);
@@ -2132,6 +2191,13 @@ const char* lua_getlightuserdataname(lua_State* L, int tag)
     api_check(L, unsigned(tag) < LUA_LUTAG_LIMIT);
     const TString* name = L->global->lightuserdataname[tag];
     return name ? getstr(name) : nullptr;
+}
+
+void lua_setlightuserdatalivenesscheck(lua_State* L, int tag, lua_LightUserdataLiveness check)
+{
+    api_check(L, unsigned(tag) < LUA_LUTAG_LIMIT);
+    api_check(L, !L->global->ludataliveness[tag]); // reassignment not supported
+    L->global->ludataliveness[tag] = check;
 }
 
 void lua_clonefunction(lua_State* L, int idx)

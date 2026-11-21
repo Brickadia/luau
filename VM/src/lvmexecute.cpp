@@ -603,7 +603,8 @@ reentry:
 
                     // fast-path: user data with C __index TM
                     const TValue* fn = 0;
-                    if (ttisuserdata(rb) && (fn = fasttm(L, uvalue(rb)->metatable, TM_INDEX)) && ttisfunction(fn) && clvalue(fn)->isC)
+                    LuaTable* mt = luaE_udatamt(L->global, rb);
+                    if (mt && (fn = fasttm(L, mt, TM_INDEX)) && ttisfunction(fn) && clvalue(fn)->isC)
                     {
                         // note: it's safe to push arguments past top for complicated reasons (see top of the file)
                         LUAU_ASSERT(L->top + 3 < L->stack + L->stacksize);
@@ -741,7 +742,8 @@ reentry:
                 {
                     // fast-path: user data with C __newindex TM
                     const TValue* fn = 0;
-                    if (ttisuserdata(rb) && (fn = fasttm(L, uvalue(rb)->metatable, TM_NEWINDEX)) && ttisfunction(fn) && clvalue(fn)->isC)
+                    LuaTable* mt = luaE_udatamt(L->global, rb);
+                    if (mt && (fn = fasttm(L, mt, TM_NEWINDEX)) && ttisfunction(fn) && clvalue(fn)->isC)
                     {
                         // note: it's safe to push arguments past top for complicated reasons (see top of the file)
                         LUAU_ASSERT(L->top + 4 < L->stack + L->stacksize);
@@ -979,7 +981,7 @@ reentry:
                 }
                 else
                 {
-                    LuaTable* mt = ttisuserdata(rb) ? uvalue(rb)->metatable : L->global->mt[ttype(rb)];
+                    LuaTable* mt = ttisuserdata(rb) ? uvalue(rb)->metatable : ttislightuserdata(rb) ? luaE_lightuserdatamt(L->global, rb) : L->global->mt[ttype(rb)];
                     const TValue* tmi = 0;
 
                     // fast-path: metatable with __namecall
@@ -1348,7 +1350,7 @@ reentry:
                 VM_CASE_INSTRUCTION insn = *pc++;
                 VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
 
-                pc += l_isfalse(ra) ? 0 : LUAU_INSN_D(insn);
+                pc += l_isfalseL(L, ra) ? 0 : LUAU_INSN_D(insn);
                 VM_ASSERT_PC(pc);
                 VM_NEXT();
             }
@@ -1358,7 +1360,7 @@ reentry:
                 VM_CASE_INSTRUCTION insn = *pc++;
                 VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
 
-                pc += l_isfalse(ra) ? LUAU_INSN_D(insn) : 0;
+                pc += l_isfalseL(L, ra) ? LUAU_INSN_D(insn) : 0;
                 VM_ASSERT_PC(pc);
                 VM_NEXT();
             }
@@ -1448,7 +1450,7 @@ reentry:
                                 L->top = top + 3;
 
                                 VM_PROTECT(luaV_callTM(L, 2, res));
-                                pc += !l_isfalse(&base[res]) ? LUAU_INSN_D(insn) : 1;
+                                pc += !l_isfalseL(L, &base[res]) ? LUAU_INSN_D(insn) : 1;
                                 VM_ASSERT_PC(pc);
                                 VM_NEXT();
                             }
@@ -1581,7 +1583,7 @@ reentry:
                                 L->top = top + 3;
 
                                 VM_PROTECT(luaV_callTM(L, 2, res));
-                                pc += l_isfalse(&base[res]) ? LUAU_INSN_D(insn) : 1;
+                                pc += l_isfalseL(L, &base[res]) ? LUAU_INSN_D(insn) : 1;
                                 VM_ASSERT_PC(pc);
                                 VM_NEXT();
                             }
@@ -2317,7 +2319,7 @@ reentry:
                 VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
-                setobj2s(L, ra, l_isfalse(rb) ? rb : rc);
+                setobj2s(L, ra, l_isfalseL(L, rb) ? rb : rc);
                 VM_NEXT();
             }
 
@@ -2328,7 +2330,7 @@ reentry:
                 VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
-                setobj2s(L, ra, l_isfalse(rb) ? rc : rb);
+                setobj2s(L, ra, l_isfalseL(L, rb) ? rc : rb);
                 VM_NEXT();
             }
 
@@ -2339,7 +2341,7 @@ reentry:
                 VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
-                setobj2s(L, ra, l_isfalse(rb) ? rb : kv);
+                setobj2s(L, ra, l_isfalseL(L, rb) ? rb : kv);
                 VM_NEXT();
             }
 
@@ -2350,7 +2352,7 @@ reentry:
                 VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
-                setobj2s(L, ra, l_isfalse(rb) ? kv : rb);
+                setobj2s(L, ra, l_isfalseL(L, rb) ? kv : rb);
                 VM_NEXT();
             }
 
@@ -2376,7 +2378,7 @@ reentry:
                 VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
                 VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
 
-                int res = l_isfalse(rb);
+                int res = l_isfalseL(L, rb);
                 setbvalue(ra, res);
                 VM_NEXT();
             }
@@ -2600,7 +2602,7 @@ reentry:
                     // during FORGLOOP
                     if (!ttisfunction(ra))
                     {
-                        LuaTable* mt = ttistable(ra) ? hvalue(ra)->metatable : ttisuserdata(ra) ? uvalue(ra)->metatable : cast_to(LuaTable*, NULL);
+                        LuaTable* mt = ttistable(ra) ? hvalue(ra)->metatable : luaE_udatamt(L->global, ra);
                         const TValue* fn = fasttm(L, mt, TM_ITER);
 
                         if (LUAU_UNLIKELY(fn == NULL && ttisobject(ra)))
@@ -2666,7 +2668,7 @@ reentry:
                     }
                     else
                     {
-                        LuaTable* mt = ttistable(ra) ? hvalue(ra)->metatable : ttisuserdata(ra) ? uvalue(ra)->metatable : cast_to(LuaTable*, NULL);
+                        LuaTable* mt = ttistable(ra) ? hvalue(ra)->metatable : luaE_udatamt(L->global, ra);
 
                         if (const TValue* fn = fasttm(L, mt, TM_ITER))
                         {
@@ -3471,18 +3473,16 @@ reentry:
                 uint32_t aux = *pc++;
                 uint32_t kidx = LUAU_INSN_AUX_KV16(aux);
                 TValue* kv = VM_KV(kidx);
+                int utag;
+                void* udata;
 
-                if (LUAU_LIKELY(ttisuserdata(rb)))
+                if (lua_UdataDirectAccessData* udatadirect = luaE_udatadirect(L->global, rb, &utag, &udata); LUAU_LIKELY(udatadirect != nullptr))
                 {
-                    int utag = uvalue(rb)->tag;
-                    lua_UdataDirectAccessData& udatadirect = L->global->udatadirect[utag];
-                    lua_UserdataDirectAccess onudataindex = udatadirect.index;
-                    TValue* tm = &udatadirect.indextm;
+                    lua_UserdataDirectAccess onudataindex = udatadirect->index;
+                    TValue* tm = &udatadirect->indextm;
 
                     if (LUAU_LIKELY(onudataindex != nullptr && !ttisnil(tm)))
                     {
-                        void* udata = uvalue(rb)->data;
-
                         // note: it's safe to push arguments past top for complicated reasons (see top of the file)
                         LUAU_ASSERT(L->top + 3 < L->stack + L->stacksize);
                         StkId top = L->top;
@@ -3545,18 +3545,16 @@ reentry:
                 uint32_t aux = *pc++;
                 uint32_t kidx = LUAU_INSN_AUX_KV16(aux);
                 TValue* kv = VM_KV(kidx);
+                int utag;
+                void* udata;
 
-                if (LUAU_LIKELY(ttisuserdata(rb)))
+                if (lua_UdataDirectAccessData* udatadirect = luaE_udatadirect(L->global, rb, &utag, &udata); LUAU_LIKELY(udatadirect != nullptr))
                 {
-                    int utag = uvalue(rb)->tag;
-                    lua_UdataDirectAccessData& udatadirect = L->global->udatadirect[utag];
-                    lua_UserdataDirectAccess onudatanewindex = udatadirect.newindex;
-                    TValue* tm = &udatadirect.newindextm;
+                    lua_UserdataDirectAccess onudatanewindex = udatadirect->newindex;
+                    TValue* tm = &udatadirect->newindextm;
 
                     if (LUAU_LIKELY(onudatanewindex != nullptr && !ttisnil(tm)))
                     {
-                        void* udata = uvalue(rb)->data;
-
                         // note: it's safe to push arguments past top for complicated reasons (see top of the file)
                         LUAU_ASSERT(L->top + 4 < L->stack + L->stacksize);
                         StkId top = L->top;
@@ -3614,18 +3612,16 @@ reentry:
                 uint32_t aux = *pc++;
                 uint32_t kidx = LUAU_INSN_AUX_KV16(aux);
                 TValue* kv = VM_KV(kidx);
+                int utag;
+                void* udata;
 
-                if (LUAU_LIKELY(ttisuserdata(rb)))
+                if (lua_UdataDirectAccessData* udatadirect = luaE_udatadirect(L->global, rb, &utag, &udata); LUAU_LIKELY(udatadirect != nullptr))
                 {
-                    int utag = uvalue(rb)->tag;
-                    lua_UdataDirectAccessData& udatadirect = L->global->udatadirect[utag];
-                    lua_UserdataDirectNamecall onudatanamecall = udatadirect.namecall;
-                    TValue* tm = &udatadirect.namecalltm;
+                    lua_UserdataDirectNamecall onudatanamecall = udatadirect->namecall;
+                    TValue* tm = &udatadirect->namecalltm;
 
                     if (LUAU_LIKELY(onudatanamecall != nullptr && !ttisnil(tm)))
                     {
-                        void* udata = uvalue(rb)->data;
-
                         // note: order of copies allows rb to alias ra+1 or ra
                         setobj2s(L, ra + 1, rb);
                         setobj2s(L, ra, tm);
